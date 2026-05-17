@@ -151,7 +151,7 @@ export function calcMetrics(data: CarWithDetails): CarMetrics {
   };
 }
 
-export type BreakdownType = 'running' | 'depreciation' | 'interest' | 'lost_payments';
+export type BreakdownType = 'running' | 'depreciation' | 'interest' | 'lost_payments' | 'equity';
 
 export interface BreakdownItem {
   label: string;
@@ -168,31 +168,44 @@ export function calcMoneyBreakdown(finance: FinanceOption, annualRunning: number
   const deposit = finance.deposit ?? 0;
   const running: BreakdownItem = { label: 'Running costs', amount: totalRunning, type: 'running' };
 
+  function endValue(years: number): number {
+    return price * Math.pow(1 - (finance.depreciation_rate ?? 15) / 100, years);
+  }
   function depLoss(years: number): number {
-    return price - price * Math.pow(1 - (finance.depreciation_rate ?? 15) / 100, years);
+    return price - endValue(years);
   }
 
   switch (finance.finance_type) {
-    case 'cash':
-      return [{ label: 'Depreciation loss', amount: depLoss(termYears), type: 'depreciation' }, running];
+    case 'cash': {
+      const ev = endValue(termYears);
+      return [
+        { label: 'Depreciation loss', amount: depLoss(termYears), type: 'depreciation' },
+        running,
+        { label: 'Asset value at end', amount: ev, type: 'equity', note: 'Estimated sale value — yours to keep or reinvest' },
+      ];
+    }
 
     case 'bank_loan': {
       const monthly = calcLoanMonthlyPayment(price - deposit, finance.apr ?? 7, termMonths);
       const interest = Math.max(0, monthly * termMonths - (price - deposit));
+      const ev = endValue(termYears);
       return [
         { label: 'Depreciation loss', amount: depLoss(termYears), type: 'depreciation' },
         { label: 'Interest paid', amount: interest, type: 'interest' },
         running,
+        { label: 'Asset value at end', amount: ev, type: 'equity', note: 'Estimated sale value — yours to keep or reinvest' },
       ];
     }
 
     case 'hp': {
       const totalPaid = deposit + (finance.monthly_payment ?? 0) * termMonths;
       const charges = totalPaid - price;
+      const ev = endValue(termYears);
       return [
         { label: 'Depreciation loss', amount: depLoss(termYears), type: 'depreciation' },
         ...(charges > 0 ? [{ label: 'Interest & HP charges', amount: charges, type: 'interest' as const }] : []),
         running,
+        { label: 'Asset value at end', amount: ev, type: 'equity', note: 'Estimated sale value — yours to keep or reinvest' },
       ];
     }
 
@@ -201,10 +214,12 @@ export function calcMoneyBreakdown(finance: FinanceOption, annualRunning: number
       const totalPaid = deposit + monthly * termMonths;
       if (finance.pcp_end_action === 'buy') {
         const charges = Math.max(0, totalPaid + (finance.balloon_payment ?? 0) - price);
+        const ev = endValue(termYears);
         return [
           { label: 'Depreciation loss', amount: depLoss(termYears), type: 'depreciation' },
           { label: 'Interest & PCP charges', amount: charges, type: 'interest', note: 'Total paid minus car purchase price' },
           running,
+          { label: 'Asset value at end', amount: ev, type: 'equity', note: 'Estimated sale value — yours to keep or reinvest' },
         ];
       }
       return [

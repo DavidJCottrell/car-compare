@@ -18,6 +18,7 @@ const BREAKDOWN_COLORS: Record<BreakdownType, string> = {
   depreciation: '#ef4444',
   interest: '#f59e0b',
   lost_payments: '#6366f1',
+  equity: '#14b8a6',
 };
 
 const FINANCE_LABELS: Record<string, string> = {
@@ -320,9 +321,9 @@ function ComparisonView() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-800">
-                <th className="text-left text-gray-500 font-medium py-3 px-6 w-48">Metric</th>
+                <th className="sticky top-16 z-20 bg-gray-900 text-left text-gray-500 font-medium py-3 px-6 w-48 shadow-[0_1px_0_0_rgb(31,41,55)]">Metric</th>
                 {metrics.map((m, i) => (
-                  <th key={m.car.id} className="text-left py-3 px-4 min-w-[160px]">
+                  <th key={m.car.id} className="sticky top-16 z-20 bg-gray-900 text-left py-3 px-4 min-w-[160px] shadow-[0_1px_0_0_rgb(31,41,55)]">
                     <div className="flex items-center gap-2">
                       <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: CAR_COLORS[i % CAR_COLORS.length] }} />
                       <span className="text-white font-semibold truncate">{m.car.nickname}</span>
@@ -383,40 +384,69 @@ function ComparisonView() {
                   <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: CAR_COLORS[i % CAR_COLORS.length] }} />
                   <p className="text-white font-medium text-sm truncate">{m.car.nickname}</p>
                 </div>
-                {/* Stacked bar */}
-                <div className="h-2.5 rounded-full overflow-hidden flex mb-4 gap-px">
-                  {breakdown.map((item, j) => (
-                    <div
-                      key={j}
-                      style={{ width: `${(item.amount / total) * 100}%`, background: BREAKDOWN_COLORS[item.type] }}
-                    />
-                  ))}
-                </div>
-                {/* Line items */}
-                <div className="space-y-2.5">
-                  {breakdown.map((item, j) => (
-                    <div key={j}>
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: BREAKDOWN_COLORS[item.type] }} />
-                          <span className="text-gray-400">{item.label}</span>
-                        </div>
-                        <span className={`font-semibold ${item.type === 'running' ? 'text-emerald-400' : item.type === 'depreciation' ? 'text-red-400' : item.type === 'interest' ? 'text-amber-400' : 'text-indigo-400'}`}>
-                          {item.type === 'running' ? '' : '−'}{fmt(item.amount)}
-                        </span>
+                {/* Stacked bar — equity at end, losses on the left */}
+                {(() => {
+                  const costs = breakdown.filter(b => b.type !== 'equity');
+                  const equity = breakdown.find(b => b.type === 'equity');
+                  const barTotal = breakdown.reduce((s, b) => s + b.amount, 0);
+                  const netCost = costs.reduce((s, b) => s + b.amount, 0);
+                  return (
+                    <>
+                      <div className="h-2.5 rounded-full overflow-hidden flex mb-1 gap-px">
+                        {costs.map((item, j) => (
+                          <div key={j} style={{ width: `${(item.amount / barTotal) * 100}%`, background: BREAKDOWN_COLORS[item.type] }} />
+                        ))}
+                        {equity && (
+                          <div style={{ width: `${(equity.amount / barTotal) * 100}%`, background: BREAKDOWN_COLORS.equity }} />
+                        )}
                       </div>
-                      {item.note && <p className="text-gray-600 text-xs ml-4 mt-0.5">{item.note}</p>}
-                    </div>
-                  ))}
-                  <div className="flex items-center justify-between text-sm border-t border-gray-800 pt-2.5 mt-1">
-                    <span className="text-gray-300 font-medium">Total cost</span>
-                    <span className="text-white font-bold">{fmt(total)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-gray-600">
-                    <span>Over {Math.round(m.tco_months / 12 * 10) / 10} years</span>
-                    <span>{fmt(total / m.tco_months)}/mo effective</span>
-                  </div>
-                </div>
+                      {equity && (
+                        <div className="flex justify-between text-xs text-gray-600 mb-3">
+                          <span>← money spent</span>
+                          <span>asset retained →</span>
+                        </div>
+                      )}
+                      {/* Cost items */}
+                      <div className="space-y-2.5">
+                        {costs.map((item, j) => (
+                          <div key={j}>
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: BREAKDOWN_COLORS[item.type] }} />
+                                <span className="text-gray-400">{item.label}</span>
+                              </div>
+                              <span className={`font-semibold ${item.type === 'running' ? 'text-emerald-400' : item.type === 'interest' ? 'text-amber-400' : 'text-indigo-400'} ${item.type === 'depreciation' ? 'text-red-400' : ''}`}>
+                                −{fmt(item.amount)}
+                              </span>
+                            </div>
+                            {item.note && <p className="text-gray-600 text-xs ml-4 mt-0.5">{item.note}</p>}
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between text-sm border-t border-gray-800 pt-2.5">
+                          <span className="text-gray-400 font-medium">Net cost (money gone)</span>
+                          <span className="text-white font-bold">−{fmt(netCost)}</span>
+                        </div>
+                        {/* Equity separator */}
+                        {equity && (
+                          <div className="bg-teal-950/40 border border-teal-800/40 rounded-lg px-3 py-2.5">
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-sm flex-shrink-0 bg-teal-500" />
+                                <span className="text-teal-300 font-medium">{equity.label}</span>
+                              </div>
+                              <span className="text-teal-300 font-bold">+{fmt(equity.amount)}</span>
+                            </div>
+                            {equity.note && <p className="text-teal-700 text-xs ml-4 mt-0.5">{equity.note}</p>}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between text-xs text-gray-600 pt-0.5">
+                          <span>Over {Math.round(m.tco_months / 12 * 10) / 10} years</span>
+                          <span>{fmt(netCost / m.tco_months)}/mo effective</span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             );
           })}
@@ -428,6 +458,7 @@ function ComparisonView() {
             { type: 'depreciation', label: 'Depreciation loss' },
             { type: 'interest', label: 'Interest / charges' },
             { type: 'lost_payments', label: 'Lease / PCP payments (no equity)' },
+            { type: 'equity', label: 'Asset value retained at end' },
           ] as const).map(({ type, label }) => (
             <div key={type} className="flex items-center gap-1.5 text-xs text-gray-500">
               <div className="w-2.5 h-2.5 rounded-sm" style={{ background: BREAKDOWN_COLORS[type] }} />
