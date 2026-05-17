@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
         (${carId}, ${rc.insurance}, ${rc.ved}, ${rc.annual_mileage}, ${rc.fuel_method},
          ${rc.fuel_annual ?? null}, ${rc.mpg ?? null}, ${rc.fuel_price_ppl ?? null},
          ${rc.miles_per_kwh ?? null}, ${rc.electricity_price_pkwh ?? null},
-         ${rc.mot}, ${rc.servicing}, ${rc.tyres}, ${rc.breakdown_cover}, ${rc.parking}, ${rc.other})
+         ${rc.mot}, ${rc.servicing}, ${rc.tyres}, ${rc.breakdown_cover ?? 0}, ${rc.parking ?? 0}, ${rc.other ?? 0})
     `;
 
     await sql`

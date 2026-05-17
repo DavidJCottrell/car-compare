@@ -25,10 +25,7 @@ export function calcAnnualRunningCost(rc: RunningCosts, fuelType: FuelType): num
     calcAnnualFuelCost(rc, fuelType) +
     (rc.mot ?? 0) +
     (rc.servicing ?? 0) +
-    (rc.tyres ?? 0) +
-    (rc.breakdown_cover ?? 0) +
-    (rc.parking ?? 0) +
-    (rc.other ?? 0)
+    (rc.tyres ?? 0)
   );
 }
 
