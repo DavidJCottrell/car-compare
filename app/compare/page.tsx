@@ -31,12 +31,10 @@ const FINANCE_LABELS: Record<string, string> = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const fmt = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
-const fmtDecimal = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtMo = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}/mo`;
 const pct = (n: number | null) => n !== null ? `${n}%` : '—';
 const dash = (v: number | null | undefined, formatter = fmt) => (v != null && v > 0) ? formatter(v) : '—';
 
-/** Return cell colour classes: lowest = green, highest = red. Only for monetary rows with >=2 values. */
 function highlightClass(value: number, allValues: number[], lowerIsBetter = true): string {
   if (allValues.length < 2 || value === 0) return '';
   const nonZero = allValues.filter(v => v > 0);
@@ -44,7 +42,7 @@ function highlightClass(value: number, allValues: number[], lowerIsBetter = true
   const best = lowerIsBetter ? Math.min(...nonZero) : Math.max(...nonZero);
   const worst = lowerIsBetter ? Math.max(...nonZero) : Math.min(...nonZero);
   if (value === best) return 'text-emerald-400';
-  if (value === worst && nonZero.length >= 2) return 'text-amber-400';
+  if (value === worst) return 'text-amber-400';
   return '';
 }
 
@@ -59,66 +57,59 @@ interface RowDef {
 }
 
 const TABLE_ROWS: RowDef[] = [
-  // Finance
   { label: 'Finance Type', getValue: m => FINANCE_LABELS[m.finance.finance_type] ?? m.finance.finance_type, section: 'Finance' },
   { label: 'Purchase Price', getValue: m => dash(m.finance.purchase_price), getNumber: m => m.finance.purchase_price ?? 0 },
-  { label: 'Deposit / Initial Rental', getValue: m => {
+  { label: 'Deposit', getValue: m => {
     if (m.finance.finance_type === 'lease') return dash((m.finance.initial_rental_months ?? 0) * (m.finance.monthly_payment ?? 0));
     return dash(m.finance.deposit);
   }, getNumber: m => m.finance.finance_type === 'lease' ? (m.finance.initial_rental_months ?? 0) * (m.finance.monthly_payment ?? 0) : (m.finance.deposit ?? 0) },
   { label: 'Monthly Payment', getValue: m => {
-    if (m.finance.finance_type === 'cash') return `${fmtMo(m.monthly_finance_cost)} (depreciation)`;
-    if (m.finance.finance_type === 'bank_loan') return `${fmtMo(m.monthly_finance_cost)} (calculated)`;
+    if (m.finance.finance_type === 'cash') return `${fmtMo(m.monthly_finance_cost)} (dep.)`;
+    if (m.finance.finance_type === 'bank_loan') return `${fmtMo(m.monthly_finance_cost)} (calc.)`;
     return fmtMo(m.finance.monthly_payment ?? 0);
   }, getNumber: m => m.monthly_finance_cost },
   { label: 'Term', getValue: m => {
     const months = getTermMonths(m.finance);
     if (m.finance.finance_type === 'cash') return `${m.finance.ownership_years ?? 3} yrs`;
-    if (m.finance.finance_type === 'lease') return `${m.finance.initial_rental_months ?? 3}+${months} months`;
-    return `${months} months`;
+    if (m.finance.finance_type === 'lease') return `${m.finance.initial_rental_months ?? 3}+${months} mo`;
+    return `${months} mo`;
   }},
   { label: 'APR', getValue: m => m.finance.finance_type === 'bank_loan' ? pct(m.finance.apr) : '—' },
   { label: 'Balloon / GMFV', getValue: m => m.finance.finance_type === 'pcp' ? dash(m.finance.balloon_payment) : '—', getNumber: m => m.finance.finance_type === 'pcp' ? (m.finance.balloon_payment ?? 0) : 0 },
   { label: 'End of Term', getValue: m => {
-    if (m.finance.finance_type === 'pcp') return m.finance.pcp_end_action === 'buy' ? 'Buy (pay balloon)' : 'Hand back';
+    if (m.finance.finance_type === 'pcp') return m.finance.pcp_end_action === 'buy' ? 'Buy balloon' : 'Hand back';
     if (m.finance.finance_type === 'lease') return 'Return car';
     return 'You own it';
   }},
-  { label: 'Depreciation Rate', getValue: m => ['cash','bank_loan','hp'].includes(m.finance.finance_type) || (m.finance.finance_type === 'pcp' && m.finance.pcp_end_action === 'buy') ? pct(m.finance.depreciation_rate) : '—' },
-  { label: 'Est. Residual Value', lowerIsBetter: false, getValue: m => {
+  { label: 'Depreciation', getValue: m => ['cash','bank_loan','hp'].includes(m.finance.finance_type) || (m.finance.finance_type === 'pcp' && m.finance.pcp_end_action === 'buy') ? pct(m.finance.depreciation_rate) : '—' },
+  { label: 'Residual Value', lowerIsBetter: false, getValue: m => {
     const ft = m.finance.finance_type;
     const price = m.finance.purchase_price ?? 0;
     if (!price || ft === 'lease' || (ft === 'pcp' && m.finance.pcp_end_action !== 'buy')) return 'N/A';
     const dep = m.finance.depreciation_rate ?? 15;
-    const years = m.tco_months / 12;
-    return fmt(price * Math.pow(1 - dep / 100, years));
+    return fmt(price * Math.pow(1 - dep / 100, m.tco_months / 12));
   }, getNumber: m => {
     const ft = m.finance.finance_type;
     const price = m.finance.purchase_price ?? 0;
     if (!price || ft === 'lease' || (ft === 'pcp' && m.finance.pcp_end_action !== 'buy')) return 0;
-    const dep = m.finance.depreciation_rate ?? 15;
-    return price * Math.pow(1 - dep / 100, m.tco_months / 12);
+    return price * Math.pow(1 - (m.finance.depreciation_rate ?? 15) / 100, m.tco_months / 12);
   }},
-  { label: 'Depreciation Loss (£)', getValue: m => {
+  { label: 'Dep. Loss', getValue: m => {
     const ft = m.finance.finance_type;
     const price = m.finance.purchase_price ?? 0;
     if (!price || ft === 'lease' || (ft === 'pcp' && m.finance.pcp_end_action !== 'buy')) return 'N/A';
     const dep = m.finance.depreciation_rate ?? 15;
-    const years = m.tco_months / 12;
-    const loss = price - price * Math.pow(1 - dep / 100, years);
-    return `−${fmt(loss)}`;
+    return `−${fmt(price - price * Math.pow(1 - dep / 100, m.tco_months / 12))}`;
   }, getNumber: m => {
     const ft = m.finance.finance_type;
     const price = m.finance.purchase_price ?? 0;
     if (!price || ft === 'lease' || (ft === 'pcp' && m.finance.pcp_end_action !== 'buy')) return 0;
-    const dep = m.finance.depreciation_rate ?? 15;
-    return price - price * Math.pow(1 - dep / 100, m.tco_months / 12);
+    return price - price * Math.pow(1 - (m.finance.depreciation_rate ?? 15) / 100, m.tco_months / 12);
   }},
 
-  // Summary
-  { label: 'Monthly Finance Cost', getValue: m => fmtMo(m.monthly_finance_cost), getNumber: m => m.monthly_finance_cost, section: 'Monthly Summary' },
-  { label: 'Monthly Running Cost', getValue: m => fmtMo(m.monthly_running_cost), getNumber: m => m.monthly_running_cost },
-  { label: 'Total Monthly Cost', getValue: m => fmtMo(m.total_monthly_cost), getNumber: m => m.total_monthly_cost },
+  { label: 'Finance / mo', getValue: m => fmtMo(m.monthly_finance_cost), getNumber: m => m.monthly_finance_cost, section: 'Monthly Summary' },
+  { label: 'Running / mo', getValue: m => fmtMo(m.monthly_running_cost), getNumber: m => m.monthly_running_cost },
+  { label: 'Total / mo', getValue: m => fmtMo(m.total_monthly_cost), getNumber: m => m.total_monthly_cost },
   { label: 'Kept %', lowerIsBetter: false, getValue: m => {
     const breakdown = calcMoneyBreakdown(m.finance, m.annual_running_cost);
     const equity = breakdown.find(b => b.type === 'equity');
@@ -132,12 +123,13 @@ const TABLE_ROWS: RowDef[] = [
     const total = breakdown.reduce((s, b) => s + b.amount, 0);
     return total > 0 ? equity.amount / total * 100 : 0;
   }},
-  { label: 'Total Cost of Ownership', getValue: m => fmt(m.tco), getNumber: m => m.tco, section: 'Ownership Summary' },
+
+  { label: 'TCO', getValue: m => fmt(m.tco), getNumber: m => m.tco, section: 'Ownership' },
   { label: 'Annual Mileage', getValue: m => `${m.running_costs.annual_mileage.toLocaleString('en-GB')} mi/yr` },
-  { label: 'Cost per Mile', getValue: m => `${(m.cost_per_mile * 100).toFixed(1)}p`, getNumber: m => m.cost_per_mile * 100 },
+  { label: 'Cost / mile', getValue: m => `${(m.cost_per_mile * 100).toFixed(1)}p`, getNumber: m => m.cost_per_mile * 100 },
 ];
 
-// ─── Custom tooltip for recharts ──────────────────────────────────────────────
+// ─── Custom tooltip ───────────────────────────────────────────────────────────
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
@@ -167,6 +159,9 @@ function ComparisonView() {
   const [error, setError] = useState<string | null>(null);
   const [fuelPrice, setFuelPrice] = useState(DEFAULT_FUEL_PRICE);
   const [electricityPrice, setElectricityPrice] = useState(DEFAULT_ELECTRICITY_PRICE);
+  const [showStickyLegend, setShowStickyLegend] = useState(false);
+
+  const carCardsRef = useRef<HTMLDivElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
 
@@ -177,6 +172,17 @@ function ComparisonView() {
     })),
     [cars, fuelPrice, electricityPrice]
   );
+
+  // Show sticky legend when car cards scroll out of view
+  useEffect(() => {
+    if (!carCardsRef.current) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setShowStickyLegend(!entry.isIntersecting),
+      { rootMargin: '-80px 0px 0px 0px', threshold: 0 }
+    );
+    obs.observe(carCardsRef.current);
+    return () => obs.disconnect();
+  }, [metrics.length]);
 
   const syncHeaderScroll = useCallback(() => {
     if (headerScrollRef.current && tableScrollRef.current) {
@@ -221,40 +227,55 @@ function ComparisonView() {
     </div>
   );
 
-  // ── Chart data ──────────────────────────────────────────────────────────
+  const stickyTableTop = showStickyLegend ? '104px' : '64px';
 
   const monthlyChartData = metrics.map((m, i) => ({
-    name: m.car.nickname.length > 14 ? m.car.nickname.slice(0, 14) + '…' : m.car.nickname,
+    name: m.car.nickname.length > 12 ? m.car.nickname.slice(0, 12) + '…' : m.car.nickname,
     Finance: Math.round(m.monthly_finance_cost),
     Running: Math.round(m.monthly_running_cost),
     color: CAR_COLORS[i % CAR_COLORS.length],
   }));
 
   const tcoChartData = metrics.map((m, i) => ({
-    name: m.car.nickname.length > 14 ? m.car.nickname.slice(0, 14) + '…' : m.car.nickname,
+    name: m.car.nickname.length > 12 ? m.car.nickname.slice(0, 12) + '…' : m.car.nickname,
     TCO: Math.round(m.tco),
     color: CAR_COLORS[i % CAR_COLORS.length],
   }));
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <button onClick={() => router.push('/')} className="text-gray-500 hover:text-gray-300 text-sm mb-2 flex items-center gap-1 transition-colors">
-            ← Garage
-          </button>
-          <h1 className="text-3xl font-bold text-white">Comparison</h1>
-          <p className="text-gray-400 mt-1">Comparing {metrics.length} cars</p>
+    <div className="space-y-5 pb-8">
+
+      {/* ── Sticky car legend — fixed below nav when cards scroll out of view ── */}
+      {showStickyLegend && (
+        <div className="fixed top-16 left-0 right-0 z-40 bg-gray-950/95 backdrop-blur-md border-b border-gray-800/80 shadow-md">
+          <div className="max-w-7xl mx-auto px-4 py-2 flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            <span className="text-gray-600 text-xs flex-shrink-0 mr-1">Comparing:</span>
+            {metrics.map((m, i) => (
+              <div key={m.car.id} className="flex items-center gap-1.5 flex-shrink-0 bg-gray-800/80 rounded-full px-2.5 py-1">
+                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: CAR_COLORS[i % CAR_COLORS.length] }} />
+                <span className="text-white text-xs font-semibold whitespace-nowrap">{m.car.nickname}</span>
+                <span className="text-gray-500 text-xs whitespace-nowrap">· {fmtMo(m.total_monthly_cost)}</span>
+              </div>
+            ))}
+          </div>
         </div>
+      )}
+
+      {/* ── Page header ── */}
+      <div>
+        <button onClick={() => router.push('/')} className="text-gray-500 hover:text-gray-300 text-sm mb-2 flex items-center gap-1 transition-colors">
+          ← Garage
+        </button>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">Comparison</h1>
+        <p className="text-gray-400 mt-1 text-sm">Comparing {metrics.length} cars</p>
       </div>
 
-      {/* Global price assumptions */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+      {/* ── Global prices ── */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 sm:px-5 py-3.5">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
           <span className="text-gray-400 text-sm font-medium">Global Prices</span>
           <div className="flex items-center gap-2">
-            <label className="text-gray-500 text-sm whitespace-nowrap">Fuel</label>
+            <label className="text-gray-500 text-sm">Fuel</label>
             <div className="relative">
               <input
                 type="number" min={0} step={0.5} value={fuelPrice}
@@ -265,7 +286,7 @@ function ComparisonView() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-gray-500 text-sm whitespace-nowrap">Electricity</label>
+            <label className="text-gray-500 text-sm">Electricity</label>
             <div className="relative">
               <input
                 type="number" min={0} step={0.5} value={electricityPrice}
@@ -275,141 +296,139 @@ function ComparisonView() {
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-xs">p/kWh</span>
             </div>
           </div>
-          <p className="text-gray-600 text-xs">Applied uniformly to all cars</p>
+          <span className="text-gray-600 text-xs">Applied to all cars</span>
         </div>
       </div>
 
-      {/* Car header cards */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${metrics.length}, minmax(0, 1fr))` }}>
-        {metrics.map((m, i) => (
-          <div key={m.car.id} className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-            <div className="w-3 h-3 rounded-full mb-3" style={{ background: CAR_COLORS[i % CAR_COLORS.length] }} />
-            <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">
-              {m.car.year} · {m.car.fuel_type}
-            </p>
-            <h3 className="text-white font-semibold text-lg leading-tight mb-1">{m.car.nickname}</h3>
-            <div className="inline-block text-xs text-gray-500 bg-gray-800 rounded-full px-2.5 py-0.5 mb-3">
-              {FINANCE_LABELS[m.finance.finance_type]}
-            </div>
-            <p className="text-3xl font-bold text-white">{fmtMo(m.total_monthly_cost)}</p>
-            <p className="text-gray-500 text-xs mt-0.5">total per month</p>
-            <div className="mt-3 pt-3 border-t border-gray-800">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">TCO</span>
-                <span className="text-gray-300 font-medium">{fmt(m.tco)}</span>
+      {/* ── Car header cards — horizontal scroll on mobile ── */}
+      <div ref={carCardsRef} className="overflow-x-auto" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+        <div className="grid gap-3 pb-1" style={{ gridTemplateColumns: `repeat(${metrics.length}, minmax(260px, 1fr))` }}>
+          {metrics.map((m, i) => (
+            <div key={m.car.id} className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <div className="w-3 h-3 rounded-full mb-3" style={{ background: CAR_COLORS[i % CAR_COLORS.length] }} />
+              <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">{m.car.year} · {m.car.fuel_type}</p>
+              <h3 className="text-white font-semibold text-lg leading-tight mb-1">{m.car.nickname}</h3>
+              <div className="inline-block text-xs text-gray-500 bg-gray-800 rounded-full px-2.5 py-0.5 mb-4">
+                {FINANCE_LABELS[m.finance.finance_type]}
               </div>
-              {(() => {
-                const ft = m.finance.finance_type;
-                const price = m.finance.purchase_price ?? 0;
-                const dep = m.finance.depreciation_rate ?? 15;
-                const years = m.tco_months / 12;
-                const showDep = price > 0 && ft !== 'lease' && !(ft === 'pcp' && m.finance.pcp_end_action !== 'buy');
-                const depLoss = showDep ? price - price * Math.pow(1 - dep / 100, years) : 0;
-                return showDep ? (
-                  <div className="flex justify-between text-sm mt-1">
-                    <span className="text-gray-500">Depreciation loss</span>
-                    <span className="text-red-400 font-medium">−{fmt(depLoss)}</span>
-                  </div>
-                ) : null;
-              })()}
-              <div className="flex justify-between text-sm mt-1">
-                <span className="text-gray-500">per mile</span>
-                <span className="text-gray-300 font-medium">{(m.cost_per_mile * 100).toFixed(1)}p</span>
+              <p className="text-3xl font-bold text-white">{fmtMo(m.total_monthly_cost)}</p>
+              <p className="text-gray-500 text-xs mt-0.5">total per month</p>
+              <div className="mt-3 pt-3 border-t border-gray-800 space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">TCO</span>
+                  <span className="text-gray-300 font-medium">{fmt(m.tco)}</span>
+                </div>
+                {(() => {
+                  const ft = m.finance.finance_type;
+                  const price = m.finance.purchase_price ?? 0;
+                  const dep = m.finance.depreciation_rate ?? 15;
+                  const years = m.tco_months / 12;
+                  const showDep = price > 0 && ft !== 'lease' && !(ft === 'pcp' && m.finance.pcp_end_action !== 'buy');
+                  return showDep ? (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Dep. loss</span>
+                      <span className="text-red-400 font-medium">−{fmt(price - price * Math.pow(1 - dep / 100, years))}</span>
+                    </div>
+                  ) : null;
+                })()}
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">per mile</span>
+                  <span className="text-gray-300 font-medium">{(m.cost_per_mile * 100).toFixed(1)}p</span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Monthly cost breakdown */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-          <h3 className="text-white font-semibold mb-1">Monthly Cost Breakdown</h3>
-          <p className="text-gray-500 text-xs mb-5">Finance vs running costs per month</p>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={monthlyChartData} barSize={32}>
+      {/* ── Charts ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <h3 className="text-white font-semibold text-sm mb-0.5">Monthly Cost Breakdown</h3>
+          <p className="text-gray-500 text-xs mb-4">Finance vs running costs</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={monthlyChartData} barSize={32} margin={{ top: 0, right: 4, bottom: 0, left: -8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-              <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} tickFormatter={v => `£${v}`} />
+              <XAxis dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} />
+              <YAxis tick={{ fill: '#9ca3af', fontSize: 10 }} tickFormatter={v => `£${v}`} />
               <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-              <Legend wrapperStyle={{ paddingTop: 8, fontSize: 12, color: '#9ca3af' }} />
+              <Legend wrapperStyle={{ paddingTop: 8, fontSize: 11, color: '#9ca3af' }} />
               <Bar dataKey="Finance" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
               <Bar dataKey="Running" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
-
-        {/* TCO comparison */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-          <h3 className="text-white font-semibold mb-1">Total Cost of Ownership</h3>
-          <p className="text-gray-500 text-xs mb-5">Net cost over each car's term (incl. running costs)</p>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={tcoChartData} barSize={40}>
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <h3 className="text-white font-semibold text-sm mb-0.5">Total Cost of Ownership</h3>
+          <p className="text-gray-500 text-xs mb-4">Net cost over term (incl. running)</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={tcoChartData} barSize={40} margin={{ top: 0, right: 4, bottom: 0, left: -8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-              <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} tickFormatter={v => `£${(v / 1000).toFixed(0)}k`} />
+              <XAxis dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} />
+              <YAxis tick={{ fill: '#9ca3af', fontSize: 10 }} tickFormatter={v => `£${(v / 1000).toFixed(0)}k`} />
               <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
               <Bar dataKey="TCO" radius={[4, 4, 0, 0]}>
-                {tcoChartData.map((entry, i) => (
-                  <Cell key={i} fill={CAR_COLORS[i % CAR_COLORS.length]} />
-                ))}
+                {tcoChartData.map((_entry, i) => <Cell key={i} fill={CAR_COLORS[i % CAR_COLORS.length]} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Detailed comparison table */}
+      {/* ── Detailed breakdown table ── */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-800">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-800">
           <h3 className="text-white font-semibold">Detailed Breakdown</h3>
           <p className="text-gray-500 text-xs mt-0.5">
-            <span className="text-emerald-400">Green</span> = best value · <span className="text-amber-400">Amber</span> = highest cost
+            <span className="text-emerald-400">Green</span> = best · <span className="text-amber-400">Amber</span> = highest cost
           </p>
         </div>
 
-        {/* Sticky car name header — lives OUTSIDE the overflow-x container so sticky works */}
-        <div className="sticky top-16 z-20 bg-gray-900 border-b-2 border-gray-700 shadow-lg overflow-x-hidden" ref={headerScrollRef}>
+        {/* Sticky header row — syncs scroll with the table body below */}
+        <div
+          className="sticky z-20 bg-gray-900 border-b-2 border-gray-700 shadow-sm overflow-x-hidden"
+          style={{ top: stickyTableTop }}
+          ref={headerScrollRef}
+        >
           <div className="flex text-sm" style={{ minWidth: 'max-content' }}>
-            <div className="flex-shrink-0 w-48 py-3 px-6 text-gray-500 font-medium">Metric</div>
+            <div className="sticky left-0 bg-gray-900 flex-shrink-0 w-28 sm:w-40 py-3 px-3 sm:px-5 text-gray-500 font-medium z-10 border-r border-gray-800/50">
+              Metric
+            </div>
             {metrics.map((m, i) => (
-              <div key={m.car.id} className="flex-shrink-0 min-w-[160px] py-3 px-4">
+              <div key={m.car.id} className="flex-shrink-0 min-w-[120px] sm:min-w-[150px] py-3 px-3 sm:px-4">
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: CAR_COLORS[i % CAR_COLORS.length] }} />
-                  <span className="text-white font-semibold truncate">{m.car.nickname}</span>
+                  <span className="text-white font-semibold truncate text-xs sm:text-sm">{m.car.nickname}</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Scrollable table body — scroll events sync the sticky header above */}
+        {/* Scrollable table body */}
         <div className="overflow-x-auto" ref={tableScrollRef} onScroll={syncHeaderScroll}>
           <table className="w-full text-sm">
             <tbody>
               {TABLE_ROWS.map((row, rowIdx) => {
                 const numbers = row.getNumber ? metrics.map(row.getNumber) : [];
-                const isSection = !!row.section;
                 return (
                   <>
-                    {isSection && (
+                    {row.section && (
                       <tr key={`section-${rowIdx}`}>
-                        <td colSpan={metrics.length + 1} className="px-6 py-3 bg-gray-950 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        <td colSpan={metrics.length + 1} className="px-3 sm:px-5 py-2.5 bg-gray-950 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           {row.section}
                         </td>
                       </tr>
                     )}
-                    <tr
-                      key={row.label}
-                      className={`border-t border-gray-800/50 ${rowIdx % 2 === 0 ? '' : 'bg-gray-800/20'}`}
-                    >
-                      <td className="py-3 px-6 text-gray-400 w-48 flex-shrink-0">{row.label}</td>
+                    <tr key={row.label} className={`border-t border-gray-800/50 ${rowIdx % 2 === 0 ? '' : 'bg-gray-800/20'}`}>
+                      <td className="py-3 px-3 sm:px-5 text-gray-400 text-xs sm:text-sm w-28 sm:w-40 sticky left-0 bg-gray-900 z-10 border-r border-gray-800/50">
+                        {row.label}
+                      </td>
                       {metrics.map((m, i) => {
                         const cellNumber = row.getNumber ? row.getNumber(m) : 0;
                         const cellClass = row.getNumber ? highlightClass(cellNumber, numbers, row.lowerIsBetter ?? true) : '';
                         return (
-                          <td key={m.car.id} className={`py-3 px-4 font-medium min-w-[160px] ${cellClass || 'text-gray-200'}`}>
+                          <td key={m.car.id} className={`py-3 px-3 sm:px-4 font-medium text-xs sm:text-sm min-w-[120px] sm:min-w-[150px] ${cellClass || 'text-gray-200'}`}>
                             {row.getValue(m)}
                           </td>
                         );
@@ -423,120 +442,106 @@ function ComparisonView() {
         </div>
       </div>
 
-      {/* Where your money goes */}
+      {/* ── Where Your Money Goes — horizontal scroll on mobile ── */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-800">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-800">
           <h3 className="text-white font-semibold">Where Your Money Goes</h3>
-          <p className="text-gray-500 text-xs mt-0.5">Total money lost or spent over the ownership period — finance, depreciation, and running costs</p>
+          <p className="text-gray-500 text-xs mt-0.5">Total money spent or retained over the ownership period</p>
         </div>
-        <div className="p-6 grid gap-8" style={{ gridTemplateColumns: `repeat(${metrics.length}, minmax(0, 1fr))` }}>
-          {metrics.map((m, i) => {
-            const breakdown = calcMoneyBreakdown(m.finance, m.annual_running_cost);
-            const total = breakdown.reduce((sum, item) => sum + item.amount, 0);
-            return (
-              <div key={m.car.id}>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: CAR_COLORS[i % CAR_COLORS.length] }} />
-                  <p className="text-white font-medium text-sm truncate">{m.car.nickname}</p>
+
+        <div className="overflow-x-auto" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+          <div className="grid gap-6 p-4 sm:p-6" style={{ gridTemplateColumns: `repeat(${metrics.length}, minmax(280px, 1fr))` }}>
+            {metrics.map((m, i) => {
+              const breakdown = calcMoneyBreakdown(m.finance, m.annual_running_cost);
+              const costs = breakdown.filter(b => b.type !== 'equity');
+              const equity = breakdown.find(b => b.type === 'equity');
+              const barTotal = breakdown.reduce((s, b) => s + b.amount, 0);
+              const netCost = costs.reduce((s, b) => s + b.amount, 0);
+              return (
+                <div key={m.car.id}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: CAR_COLORS[i % CAR_COLORS.length] }} />
+                    <p className="text-white font-semibold text-sm truncate">{m.car.nickname}</p>
+                  </div>
+
+                  {/* Stacked bar */}
+                  <div className="h-2.5 rounded-full overflow-hidden flex mb-1 gap-px">
+                    {costs.map((item, j) => (
+                      <div key={j} style={{ width: `${(item.amount / barTotal) * 100}%`, background: BREAKDOWN_COLORS[item.type] }} />
+                    ))}
+                    {equity && (
+                      <div style={{ width: `${(equity.amount / barTotal) * 100}%`, background: BREAKDOWN_COLORS.equity }} />
+                    )}
+                  </div>
+                  {equity && (
+                    <div className="flex justify-between text-xs text-gray-600 mb-3">
+                      <span>← spent</span>
+                      <span>retained →</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-2.5">
+                    {costs.map((item, j) => (
+                      <div key={j}>
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: BREAKDOWN_COLORS[item.type] }} />
+                            <span className="text-gray-400">{item.label}</span>
+                          </div>
+                          <span className={`font-semibold ${item.type === 'running' ? 'text-emerald-400' : item.type === 'interest' ? 'text-amber-400' : item.type === 'depreciation' ? 'text-red-400' : 'text-indigo-400'}`}>
+                            −{fmt(item.amount)}
+                          </span>
+                        </div>
+                        {item.note && <p className="text-gray-600 text-xs ml-4 mt-0.5">{item.note}</p>}
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between text-sm border-t border-gray-800 pt-2.5">
+                      <span className="text-gray-400 font-medium">Net cost</span>
+                      <span className="text-white font-bold">−{fmt(netCost)}</span>
+                    </div>
+                    {equity && (
+                      <div className="bg-teal-950/40 border border-teal-800/40 rounded-lg px-3 py-2.5">
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-sm flex-shrink-0 bg-teal-500" />
+                            <span className="text-teal-300 font-medium">{equity.label}</span>
+                          </div>
+                          <span className="text-teal-300 font-bold">+{fmt(equity.amount)}</span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-xs text-gray-600 pt-0.5">
+                      <span>Over {Math.round(m.tco_months / 12 * 10) / 10} yrs</span>
+                      <span>{fmt(netCost / m.tco_months)}/mo effective</span>
+                    </div>
+                  </div>
                 </div>
-                {/* Stacked bar — equity at end, losses on the left */}
-                {(() => {
-                  const costs = breakdown.filter(b => b.type !== 'equity');
-                  const equity = breakdown.find(b => b.type === 'equity');
-                  const barTotal = breakdown.reduce((s, b) => s + b.amount, 0);
-                  const netCost = costs.reduce((s, b) => s + b.amount, 0);
-                  return (
-                    <>
-                      <div className="h-2.5 rounded-full overflow-hidden flex mb-1 gap-px">
-                        {costs.map((item, j) => (
-                          <div key={j} style={{ width: `${(item.amount / barTotal) * 100}%`, background: BREAKDOWN_COLORS[item.type] }} />
-                        ))}
-                        {equity && (
-                          <div style={{ width: `${(equity.amount / barTotal) * 100}%`, background: BREAKDOWN_COLORS.equity }} />
-                        )}
-                      </div>
-                      {equity && (
-                        <div className="flex justify-between text-xs text-gray-600 mb-3">
-                          <span>← money spent</span>
-                          <span>asset retained →</span>
-                        </div>
-                      )}
-                      {/* Cost items */}
-                      <div className="space-y-2.5">
-                        {costs.map((item, j) => (
-                          <div key={j}>
-                            <div className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: BREAKDOWN_COLORS[item.type] }} />
-                                <span className="text-gray-400">{item.label}</span>
-                              </div>
-                              <span className={`font-semibold ${item.type === 'running' ? 'text-emerald-400' : item.type === 'interest' ? 'text-amber-400' : 'text-indigo-400'} ${item.type === 'depreciation' ? 'text-red-400' : ''}`}>
-                                −{fmt(item.amount)}
-                              </span>
-                            </div>
-                            {item.note && <p className="text-gray-600 text-xs ml-4 mt-0.5">{item.note}</p>}
-                          </div>
-                        ))}
-                        <div className="flex items-center justify-between text-sm border-t border-gray-800 pt-2.5">
-                          <span className="text-gray-400 font-medium">Net cost (money gone)</span>
-                          <span className="text-white font-bold">−{fmt(netCost)}</span>
-                        </div>
-                        {/* Equity separator */}
-                        {equity && (
-                          <div className="bg-teal-950/40 border border-teal-800/40 rounded-lg px-3 py-2.5">
-                            <div className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-sm flex-shrink-0 bg-teal-500" />
-                                <span className="text-teal-300 font-medium">{equity.label}</span>
-                              </div>
-                              <span className="text-teal-300 font-bold">+{fmt(equity.amount)}</span>
-                            </div>
-                            {equity.note && <p className="text-teal-700 text-xs ml-4 mt-0.5">{equity.note}</p>}
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between text-xs text-gray-600 pt-0.5">
-                          <span>Over {Math.round(m.tco_months / 12 * 10) / 10} years</span>
-                          <span>{fmt(netCost / m.tco_months)}/mo effective</span>
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
+
         {/* Legend */}
-        <div className="px-6 pb-5 flex flex-wrap gap-4">
+        <div className="px-4 sm:px-6 pb-5 pt-1 flex flex-wrap gap-3 border-t border-gray-800/50">
           {([
             { type: 'running', label: 'Running costs' },
-            { type: 'depreciation', label: 'Depreciation loss' },
+            { type: 'depreciation', label: 'Depreciation' },
             { type: 'interest', label: 'Interest / charges' },
-            { type: 'lost_payments', label: 'Lease / PCP payments (no equity)' },
-            { type: 'equity', label: 'Asset value retained at end' },
+            { type: 'lost_payments', label: 'Payments (no equity)' },
+            { type: 'equity', label: 'Asset retained' },
           ] as const).map(({ type, label }) => (
             <div key={type} className="flex items-center gap-1.5 text-xs text-gray-500">
-              <div className="w-2.5 h-2.5 rounded-sm" style={{ background: BREAKDOWN_COLORS[type] }} />
+              <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: BREAKDOWN_COLORS[type] }} />
               {label}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Assumptions note */}
-      <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-5 text-xs text-gray-500 space-y-1">
-        <p className="text-gray-400 font-medium mb-2">Assumptions & Notes</p>
-        <p>· Depreciation is estimated using a compound annual rate applied to the purchase price. Actual resale values vary by make, model, condition, and market.</p>
-        <p>· TCO for Cash/Loan/HP deducts the estimated residual value; for PCP (hand back) and Lease, it doesn't (you return the car).</p>
-        <p>· Fuel costs use UK imperial MPG (1 gallon = 4.546 litres). Electric efficiency uses miles per kWh. Fuel and electricity prices are set globally at the top of this page and applied uniformly to all cars.</p>
-        <p>· For Bank Loan, monthly payment is calculated using standard amortisation: P × [r(1+r)ⁿ] / [(1+r)ⁿ − 1].</p>
-        <p>· Lease effective monthly cost spreads the initial rental over the contract term for fair comparison.</p>
-      </div>
     </div>
   );
 }
 
-// Suspense wrapper required for useSearchParams in Next.js App Router
 export default function ComparePage() {
   return (
     <Suspense fallback={
