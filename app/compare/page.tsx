@@ -44,6 +44,7 @@ interface RowDef {
   getValue: (m: CarMetrics) => string;
   getNumber?: (m: CarMetrics) => number;
   section?: string;
+  lowerIsBetter?: boolean;
 }
 
 const TABLE_ROWS: RowDef[] = [
@@ -73,7 +74,7 @@ const TABLE_ROWS: RowDef[] = [
     return 'You own it';
   }},
   { label: 'Depreciation Rate', getValue: m => ['cash','bank_loan','hp'].includes(m.finance.finance_type) || (m.finance.finance_type === 'pcp' && m.finance.pcp_end_action === 'buy') ? pct(m.finance.depreciation_rate) : '—' },
-  { label: 'Est. Residual Value', getValue: m => {
+  { label: 'Est. Residual Value', lowerIsBetter: false, getValue: m => {
     const ft = m.finance.finance_type;
     const price = m.finance.purchase_price ?? 0;
     if (!price || ft === 'lease' || (ft === 'pcp' && m.finance.pcp_end_action !== 'buy')) return 'N/A';
@@ -343,7 +344,7 @@ function ComparisonView() {
                       <td className="py-3 px-6 text-gray-400">{row.label}</td>
                       {metrics.map((m, i) => {
                         const cellNumber = row.getNumber ? row.getNumber(m) : 0;
-                        const cellClass = row.getNumber ? highlightClass(cellNumber, numbers) : '';
+                        const cellClass = row.getNumber ? highlightClass(cellNumber, numbers, row.lowerIsBetter ?? true) : '';
                         return (
                           <td key={m.car.id} className={`py-3 px-4 font-medium ${cellClass || 'text-gray-200'}`}>
                             {row.getValue(m)}
