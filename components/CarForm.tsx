@@ -591,18 +591,18 @@ export function CarForm({ initialData }: CarFormProps) {
       </Section>
 
       {/* ─── Section 3: Annual Running Costs ───────────────────────────────── */}
-      <Section title="Annual Running Costs" icon="📊">
+      <Section title="Monthly Running Costs" icon="📊">
         <GridRow>
-          <Field label="Insurance" hint="Annual premium">
-            <CurrencyInput value={form.running_costs.insurance} onChange={v => setRC({ insurance: v })} placeholder="800" />
+          <Field label="Insurance" hint="Monthly premium">
+            <CurrencyInput value={Math.round(form.running_costs.insurance / 12 * 100) / 100} onChange={v => setRC({ insurance: v * 12 })} placeholder="67" />
           </Field>
-          <Field label="Road Tax (VED)" hint="Check gov.uk/check-vehicle-tax">
-            <CurrencyInput value={form.running_costs.ved} onChange={v => setRC({ ved: v })} placeholder="180" />
+          <Field label="Road Tax (VED)" hint="Monthly — check gov.uk/check-vehicle-tax">
+            <CurrencyInput value={Math.round(form.running_costs.ved / 12 * 100) / 100} onChange={v => setRC({ ved: v * 12 })} placeholder="15" />
           </Field>
         </GridRow>
 
-        <Field label="Annual Mileage">
-          <NumberInput value={form.running_costs.annual_mileage} onChange={v => setRC({ annual_mileage: v })} suffix="miles" />
+        <Field label="Annual Mileage" hint="Used to calculate monthly fuel cost">
+          <NumberInput value={form.running_costs.annual_mileage} onChange={v => setRC({ annual_mileage: v })} suffix="miles/yr" />
         </Field>
 
         {/* Fuel section */}
@@ -619,14 +619,14 @@ export function CarForm({ initialData }: CarFormProps) {
                     : 'bg-gray-800 text-gray-400 hover:text-white'
                 }`}
               >
-                {method === 'calculated' ? 'Calculate from consumption' : 'Enter manually'}
+                {method === 'calculated' ? 'Calculate from consumption' : 'Enter monthly amount'}
               </button>
             ))}
           </div>
 
           {form.running_costs.fuel_method === 'manual' ? (
-            <Field label="Annual Fuel / Electricity Cost">
-              <CurrencyInput value={form.running_costs.fuel_annual} onChange={v => setRC({ fuel_annual: v })} placeholder="1200" />
+            <Field label="Monthly Fuel / Electricity Cost">
+              <CurrencyInput value={Math.round(form.running_costs.fuel_annual / 12 * 100) / 100} onChange={v => setRC({ fuel_annual: v * 12 })} placeholder="100" />
             </Field>
           ) : isElectric ? (
             <GridRow>
@@ -650,17 +650,18 @@ export function CarForm({ initialData }: CarFormProps) {
 
           {estimatedFuelCost !== null && (
             <div className="mt-2 bg-gray-800/50 rounded-lg px-4 py-2.5 flex justify-between items-center">
-              <span className="text-gray-400 text-sm">Estimated annual {isElectric ? 'charging' : 'fuel'} cost</span>
-              <span className="text-white font-semibold">£{Math.round(estimatedFuelCost).toLocaleString('en-GB')}/yr</span>
+              <span className="text-gray-400 text-sm">Estimated monthly {isElectric ? 'charging' : 'fuel'} cost</span>
+              <span className="text-white font-semibold">£{Math.round(estimatedFuelCost / 12).toLocaleString('en-GB')}/mo</span>
             </div>
           )}
         </div>
 
+        <p className="text-xs text-gray-600 -mt-1">Other costs below are annual — enter the yearly total.</p>
         <GridRow>
           <Field label="MOT" hint="Annual test (typically £54.85)">
             <CurrencyInput value={form.running_costs.mot} onChange={v => setRC({ mot: v })} placeholder="55" />
           </Field>
-          <Field label="Servicing & Maintenance">
+          <Field label="Servicing & Maintenance" hint="Annual total">
             <CurrencyInput value={form.running_costs.servicing} onChange={v => setRC({ servicing: v })} placeholder="350" />
           </Field>
         </GridRow>
@@ -668,15 +669,15 @@ export function CarForm({ initialData }: CarFormProps) {
           <Field label="Tyres" hint="Annual average (replacement cost ÷ lifespan)">
             <CurrencyInput value={form.running_costs.tyres} onChange={v => setRC({ tyres: v })} placeholder="150" />
           </Field>
-          <Field label="Breakdown Cover">
+          <Field label="Breakdown Cover" hint="Annual">
             <CurrencyInput value={form.running_costs.breakdown_cover} onChange={v => setRC({ breakdown_cover: v })} placeholder="60" />
           </Field>
         </GridRow>
         <GridRow>
-          <Field label="Parking / Permits">
+          <Field label="Parking / Permits" hint="Annual">
             <CurrencyInput value={form.running_costs.parking} onChange={v => setRC({ parking: v })} placeholder="0" />
           </Field>
-          <Field label="Other Costs">
+          <Field label="Other Costs" hint="Annual">
             <CurrencyInput value={form.running_costs.other} onChange={v => setRC({ other: v })} placeholder="0" />
           </Field>
         </GridRow>

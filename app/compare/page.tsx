@@ -7,11 +7,18 @@ import {
   ResponsiveContainer, Cell, Legend,
 } from 'recharts';
 import { CarWithDetails, CarMetrics } from '@/lib/types';
-import { calcMetrics, calcAnnualFuelCost, getTermMonths } from '@/lib/calculations';
+import { calcMetrics, calcAnnualFuelCost, getTermMonths, calcMoneyBreakdown, BreakdownType } from '@/lib/calculations';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CAR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#f43f5e', '#a855f7'];
+
+const BREAKDOWN_COLORS: Record<BreakdownType, string> = {
+  running: '#10b981',
+  depreciation: '#ef4444',
+  interest: '#f59e0b',
+  lost_payments: '#6366f1',
+};
 
 const FINANCE_LABELS: Record<string, string> = {
   cash: 'Cash', bank_loan: 'Bank Loan', hp: 'HP', pcp: 'PCP', lease: 'Lease / PCH',
@@ -105,16 +112,16 @@ const TABLE_ROWS: RowDef[] = [
   }},
 
   // Running costs
-  { label: 'Insurance', getValue: m => fmt(m.running_costs.insurance), getNumber: m => m.running_costs.insurance, section: 'Annual Running Costs' },
-  { label: 'Road Tax (VED)', getValue: m => fmt(m.running_costs.ved), getNumber: m => m.running_costs.ved },
-  { label: 'Fuel / Electricity', getValue: m => `${fmt(m.annual_fuel_cost)}/yr`, getNumber: m => m.annual_fuel_cost },
-  { label: 'MOT', getValue: m => fmt(m.running_costs.mot), getNumber: m => m.running_costs.mot },
-  { label: 'Servicing', getValue: m => fmt(m.running_costs.servicing), getNumber: m => m.running_costs.servicing },
-  { label: 'Tyres', getValue: m => fmt(m.running_costs.tyres), getNumber: m => m.running_costs.tyres },
-  { label: 'Breakdown Cover', getValue: m => fmt(m.running_costs.breakdown_cover), getNumber: m => m.running_costs.breakdown_cover },
-  { label: 'Parking', getValue: m => fmt(m.running_costs.parking), getNumber: m => m.running_costs.parking },
-  { label: 'Other', getValue: m => fmt(m.running_costs.other), getNumber: m => m.running_costs.other },
-  { label: 'Total Annual Running', getValue: m => `${fmt(m.annual_running_cost)}/yr`, getNumber: m => m.annual_running_cost },
+  { label: 'Insurance', getValue: m => `${fmt(m.running_costs.insurance / 12)}/mo`, getNumber: m => m.running_costs.insurance / 12, section: 'Monthly Running Costs' },
+  { label: 'Road Tax (VED)', getValue: m => `${fmt(m.running_costs.ved / 12)}/mo`, getNumber: m => m.running_costs.ved / 12 },
+  { label: 'Fuel / Electricity', getValue: m => `${fmt(m.annual_fuel_cost / 12)}/mo`, getNumber: m => m.annual_fuel_cost / 12 },
+  { label: 'MOT', getValue: m => `${fmt(m.running_costs.mot / 12)}/mo`, getNumber: m => m.running_costs.mot / 12 },
+  { label: 'Servicing', getValue: m => `${fmt(m.running_costs.servicing / 12)}/mo`, getNumber: m => m.running_costs.servicing / 12 },
+  { label: 'Tyres', getValue: m => `${fmt(m.running_costs.tyres / 12)}/mo`, getNumber: m => m.running_costs.tyres / 12 },
+  { label: 'Breakdown Cover', getValue: m => `${fmt(m.running_costs.breakdown_cover / 12)}/mo`, getNumber: m => m.running_costs.breakdown_cover / 12 },
+  { label: 'Parking', getValue: m => `${fmt(m.running_costs.parking / 12)}/mo`, getNumber: m => m.running_costs.parking / 12 },
+  { label: 'Other', getValue: m => `${fmt(m.running_costs.other / 12)}/mo`, getNumber: m => m.running_costs.other / 12 },
+  { label: 'Total Monthly Running', getValue: m => `${fmt(m.monthly_running_cost)}/mo`, getNumber: m => m.monthly_running_cost },
 
   // Summary
   { label: 'Monthly Finance Cost', getValue: m => fmtMo(m.monthly_finance_cost), getNumber: m => m.monthly_finance_cost, section: 'Monthly Summary' },
@@ -357,6 +364,76 @@ function ComparisonView() {
               })}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Where your money goes */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-800">
+          <h3 className="text-white font-semibold">Where Your Money Goes</h3>
+          <p className="text-gray-500 text-xs mt-0.5">Total money lost or spent over the ownership period — finance, depreciation, and running costs</p>
+        </div>
+        <div className="p-6 grid gap-8" style={{ gridTemplateColumns: `repeat(${metrics.length}, minmax(0, 1fr))` }}>
+          {metrics.map((m, i) => {
+            const breakdown = calcMoneyBreakdown(m.finance, m.annual_running_cost);
+            const total = breakdown.reduce((sum, item) => sum + item.amount, 0);
+            return (
+              <div key={m.car.id}>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: CAR_COLORS[i % CAR_COLORS.length] }} />
+                  <p className="text-white font-medium text-sm truncate">{m.car.nickname}</p>
+                </div>
+                {/* Stacked bar */}
+                <div className="h-2.5 rounded-full overflow-hidden flex mb-4 gap-px">
+                  {breakdown.map((item, j) => (
+                    <div
+                      key={j}
+                      style={{ width: `${(item.amount / total) * 100}%`, background: BREAKDOWN_COLORS[item.type] }}
+                    />
+                  ))}
+                </div>
+                {/* Line items */}
+                <div className="space-y-2.5">
+                  {breakdown.map((item, j) => (
+                    <div key={j}>
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: BREAKDOWN_COLORS[item.type] }} />
+                          <span className="text-gray-400">{item.label}</span>
+                        </div>
+                        <span className={`font-semibold ${item.type === 'running' ? 'text-emerald-400' : item.type === 'depreciation' ? 'text-red-400' : item.type === 'interest' ? 'text-amber-400' : 'text-indigo-400'}`}>
+                          {item.type === 'running' ? '' : '−'}{fmt(item.amount)}
+                        </span>
+                      </div>
+                      {item.note && <p className="text-gray-600 text-xs ml-4 mt-0.5">{item.note}</p>}
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between text-sm border-t border-gray-800 pt-2.5 mt-1">
+                    <span className="text-gray-300 font-medium">Total cost</span>
+                    <span className="text-white font-bold">{fmt(total)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-gray-600">
+                    <span>Over {Math.round(m.tco_months / 12 * 10) / 10} years</span>
+                    <span>{fmt(total / m.tco_months)}/mo effective</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {/* Legend */}
+        <div className="px-6 pb-5 flex flex-wrap gap-4">
+          {([
+            { type: 'running', label: 'Running costs' },
+            { type: 'depreciation', label: 'Depreciation loss' },
+            { type: 'interest', label: 'Interest / charges' },
+            { type: 'lost_payments', label: 'Lease / PCP payments (no equity)' },
+          ] as const).map(({ type, label }) => (
+            <div key={type} className="flex items-center gap-1.5 text-xs text-gray-500">
+              <div className="w-2.5 h-2.5 rounded-sm" style={{ background: BREAKDOWN_COLORS[type] }} />
+              {label}
+            </div>
+          ))}
         </div>
       </div>
 

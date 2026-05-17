@@ -150,3 +150,79 @@ export function calcMetrics(data: CarWithDetails): CarMetrics {
     cost_per_mile: costPerMile,
   };
 }
+
+export type BreakdownType = 'running' | 'depreciation' | 'interest' | 'lost_payments';
+
+export interface BreakdownItem {
+  label: string;
+  amount: number;
+  type: BreakdownType;
+  note?: string;
+}
+
+export function calcMoneyBreakdown(finance: FinanceOption, annualRunning: number): BreakdownItem[] {
+  const termMonths = getTermMonths(finance);
+  const termYears = termMonths / 12;
+  const totalRunning = annualRunning * termYears;
+  const price = finance.purchase_price ?? 0;
+  const deposit = finance.deposit ?? 0;
+  const running: BreakdownItem = { label: 'Running costs', amount: totalRunning, type: 'running' };
+
+  function depLoss(years: number): number {
+    return price - price * Math.pow(1 - (finance.depreciation_rate ?? 15) / 100, years);
+  }
+
+  switch (finance.finance_type) {
+    case 'cash':
+      return [{ label: 'Depreciation loss', amount: depLoss(termYears), type: 'depreciation' }, running];
+
+    case 'bank_loan': {
+      const monthly = calcLoanMonthlyPayment(price - deposit, finance.apr ?? 7, termMonths);
+      const interest = Math.max(0, monthly * termMonths - (price - deposit));
+      return [
+        { label: 'Depreciation loss', amount: depLoss(termYears), type: 'depreciation' },
+        { label: 'Interest paid', amount: interest, type: 'interest' },
+        running,
+      ];
+    }
+
+    case 'hp': {
+      const totalPaid = deposit + (finance.monthly_payment ?? 0) * termMonths;
+      const charges = totalPaid - price;
+      return [
+        { label: 'Depreciation loss', amount: depLoss(termYears), type: 'depreciation' },
+        ...(charges > 0 ? [{ label: 'Interest & HP charges', amount: charges, type: 'interest' as const }] : []),
+        running,
+      ];
+    }
+
+    case 'pcp': {
+      const monthly = finance.monthly_payment ?? 0;
+      const totalPaid = deposit + monthly * termMonths;
+      if (finance.pcp_end_action === 'buy') {
+        const charges = Math.max(0, totalPaid + (finance.balloon_payment ?? 0) - price);
+        return [
+          { label: 'Depreciation loss', amount: depLoss(termYears), type: 'depreciation' },
+          { label: 'Interest & PCP charges', amount: charges, type: 'interest', note: 'Total paid minus car purchase price' },
+          running,
+        ];
+      }
+      return [
+        { label: 'PCP payments (no equity)', amount: totalPaid, type: 'lost_payments', note: 'Car returned — nothing to show for payments' },
+        running,
+      ];
+    }
+
+    case 'lease': {
+      const monthly = finance.monthly_payment ?? 0;
+      const totalLease = ((finance.initial_rental_months ?? 3) + termMonths) * monthly;
+      return [
+        { label: 'Lease payments (no equity)', amount: totalLease, type: 'lost_payments', note: 'Car returned — nothing to show for payments' },
+        running,
+      ];
+    }
+
+    default:
+      return [running];
+  }
+}
