@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -161,6 +161,14 @@ function ComparisonView() {
   const [metrics, setMetrics] = useState<CarMetrics[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const headerScrollRef = useRef<HTMLDivElement>(null);
+
+  const syncHeaderScroll = useCallback(() => {
+    if (headerScrollRef.current && tableScrollRef.current) {
+      headerScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+    }
+  }, []);
 
   useEffect(() => {
     if (ids.length < 2) { setLoading(false); return; }
@@ -317,21 +325,24 @@ function ComparisonView() {
           </p>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Sticky car name header — lives OUTSIDE the overflow-x container so sticky works */}
+        <div className="sticky top-16 z-20 bg-gray-900 border-b-2 border-gray-700 shadow-lg overflow-x-hidden" ref={headerScrollRef}>
+          <div className="flex text-sm" style={{ minWidth: 'max-content' }}>
+            <div className="flex-shrink-0 w-48 py-3 px-6 text-gray-500 font-medium">Metric</div>
+            {metrics.map((m, i) => (
+              <div key={m.car.id} className="flex-shrink-0 min-w-[160px] py-3 px-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: CAR_COLORS[i % CAR_COLORS.length] }} />
+                  <span className="text-white font-semibold truncate">{m.car.nickname}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Scrollable table body — scroll events sync the sticky header above */}
+        <div className="overflow-x-auto" ref={tableScrollRef} onScroll={syncHeaderScroll}>
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-800">
-                <th className="sticky top-16 z-20 bg-gray-900 text-left text-gray-500 font-medium py-3 px-6 w-48 shadow-[0_1px_0_0_rgb(31,41,55)]">Metric</th>
-                {metrics.map((m, i) => (
-                  <th key={m.car.id} className="sticky top-16 z-20 bg-gray-900 text-left py-3 px-4 min-w-[160px] shadow-[0_1px_0_0_rgb(31,41,55)]">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: CAR_COLORS[i % CAR_COLORS.length] }} />
-                      <span className="text-white font-semibold truncate">{m.car.nickname}</span>
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
             <tbody>
               {TABLE_ROWS.map((row, rowIdx) => {
                 const numbers = row.getNumber ? metrics.map(row.getNumber) : [];
@@ -349,12 +360,12 @@ function ComparisonView() {
                       key={row.label}
                       className={`border-t border-gray-800/50 ${rowIdx % 2 === 0 ? '' : 'bg-gray-800/20'}`}
                     >
-                      <td className="py-3 px-6 text-gray-400">{row.label}</td>
+                      <td className="py-3 px-6 text-gray-400 w-48 flex-shrink-0">{row.label}</td>
                       {metrics.map((m, i) => {
                         const cellNumber = row.getNumber ? row.getNumber(m) : 0;
                         const cellClass = row.getNumber ? highlightClass(cellNumber, numbers, row.lowerIsBetter ?? true) : '';
                         return (
-                          <td key={m.car.id} className={`py-3 px-4 font-medium ${cellClass || 'text-gray-200'}`}>
+                          <td key={m.car.id} className={`py-3 px-4 font-medium min-w-[160px] ${cellClass || 'text-gray-200'}`}>
                             {row.getValue(m)}
                           </td>
                         );
