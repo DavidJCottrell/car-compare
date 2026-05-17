@@ -77,15 +77,10 @@ export interface FormRunningCosts {
   fuel_method: FuelMethod;
   fuel_annual: number;
   mpg: number;
-  fuel_price_ppl: number;
   miles_per_kwh: number;
-  electricity_price_pkwh: number;
   mot: number;
   servicing: number;
   tyres: number;
-  breakdown_cover: number;
-  parking: number;
-  other: number;
 }
 
 export interface FormFinance {
@@ -128,15 +123,10 @@ export const defaultFormData: CarFormData = {
     fuel_method: 'calculated',
     fuel_annual: 0,
     mpg: 35,
-    fuel_price_ppl: 148,
     miles_per_kwh: 3.5,
-    electricity_price_pkwh: 28,
     mot: 55,
     servicing: 350,
     tyres: 150,
-    breakdown_cover: 0,
-    parking: 0,
-    other: 0,
   },
   finance: {
     finance_type: 'bank_loan',

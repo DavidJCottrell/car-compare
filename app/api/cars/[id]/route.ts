@@ -41,7 +41,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
           mpg = ${rc.mpg ?? null}, fuel_price_ppl = ${rc.fuel_price_ppl ?? null},
           miles_per_kwh = ${rc.miles_per_kwh ?? null}, electricity_price_pkwh = ${rc.electricity_price_pkwh ?? null},
           mot = ${rc.mot}, servicing = ${rc.servicing}, tyres = ${rc.tyres},
-          breakdown_cover = ${rc.breakdown_cover}, parking = ${rc.parking}, other = ${rc.other}
+          breakdown_cover = ${rc.breakdown_cover ?? 0}, parking = ${rc.parking ?? 0}, other = ${rc.other ?? 0}
       WHERE car_id = ${params.id}
     `;
 

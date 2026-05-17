@@ -172,15 +172,10 @@ function mapCarToForm(data: CarWithDetails): CarFormData {
       fuel_method: rc.fuel_method,
       fuel_annual: rc.fuel_annual ?? 0,
       mpg: rc.mpg ?? 35,
-      fuel_price_ppl: rc.fuel_price_ppl ?? 148,
       miles_per_kwh: rc.miles_per_kwh ?? 3.5,
-      electricity_price_pkwh: rc.electricity_price_pkwh ?? 28,
       mot: rc.mot,
       servicing: rc.servicing,
       tyres: rc.tyres,
-      breakdown_cover: rc.breakdown_cover,
-      parking: rc.parking,
-      other: rc.other,
     },
     finance: {
       finance_type: f.finance_type,
@@ -238,11 +233,16 @@ export function CarForm({ initialData }: CarFormProps) {
     return calcLoanMonthlyPayment(principal, form.finance.apr, form.finance.term_months);
   }, [form.finance.finance_type, form.finance.purchase_price, form.finance.deposit, form.finance.apr, form.finance.term_months]);
 
-  // Live annual fuel estimate
+  // Live annual fuel estimate (uses default global prices of 148p/L, 28p/kWh)
   const estimatedFuelCost = useMemo(() => {
     if (form.running_costs.fuel_method === 'manual') return null;
     const rc = {
       ...form.running_costs,
+      fuel_price_ppl: 148,
+      electricity_price_pkwh: 28,
+      breakdown_cover: 0,
+      parking: 0,
+      other: 0,
       fuel_annual: null,
       fuel_method: 'calculated' as const,
       id: '', car_id: '',
@@ -629,23 +629,19 @@ export function CarForm({ initialData }: CarFormProps) {
               <CurrencyInput value={Math.round(form.running_costs.fuel_annual / 12 * 100) / 100} onChange={v => setRC({ fuel_annual: v * 12 })} placeholder="100" />
             </Field>
           ) : isElectric ? (
-            <GridRow>
+            <>
               <Field label="Efficiency" hint="Miles per kWh (typical: 3–4)">
                 <NumberInput value={form.running_costs.miles_per_kwh} onChange={v => setRC({ miles_per_kwh: v })} suffix="mi/kWh" step={0.1} />
               </Field>
-              <Field label="Electricity Price" hint="Pence per kWh (home avg ~28p)">
-                <NumberInput value={form.running_costs.electricity_price_pkwh} onChange={v => setRC({ electricity_price_pkwh: v })} suffix="p/kWh" step={0.5} />
-              </Field>
-            </GridRow>
+              <p className="text-xs text-gray-500 -mt-2">Electricity price is set globally on the comparison page (default: 28p/kWh).</p>
+            </>
           ) : (
-            <GridRow>
+            <>
               <Field label="Fuel Economy" hint="MPG (combined)">
                 <NumberInput value={form.running_costs.mpg} onChange={v => setRC({ mpg: v })} suffix="MPG" step={0.5} />
               </Field>
-              <Field label="Fuel Price" hint="Pence per litre (UK avg ~148p)">
-                <NumberInput value={form.running_costs.fuel_price_ppl} onChange={v => setRC({ fuel_price_ppl: v })} suffix="p/L" step={0.5} />
-              </Field>
-            </GridRow>
+              <p className="text-xs text-gray-500 -mt-2">Fuel price is set globally on the comparison page (default: 148p/L).</p>
+            </>
           )}
 
           {estimatedFuelCost !== null && (
@@ -656,7 +652,7 @@ export function CarForm({ initialData }: CarFormProps) {
           )}
         </div>
 
-        <p className="text-xs text-gray-600 -mt-1">Other costs below are annual — enter the yearly total.</p>
+        <p className="text-xs text-gray-600 -mt-1">Costs below are annual — enter the yearly total.</p>
         <GridRow>
           <Field label="MOT" hint="Annual test (typically £54.85)">
             <CurrencyInput value={form.running_costs.mot} onChange={v => setRC({ mot: v })} placeholder="55" />
@@ -665,22 +661,9 @@ export function CarForm({ initialData }: CarFormProps) {
             <CurrencyInput value={form.running_costs.servicing} onChange={v => setRC({ servicing: v })} placeholder="350" />
           </Field>
         </GridRow>
-        <GridRow>
-          <Field label="Tyres" hint="Annual average (replacement cost ÷ lifespan)">
-            <CurrencyInput value={form.running_costs.tyres} onChange={v => setRC({ tyres: v })} placeholder="150" />
-          </Field>
-          <Field label="Breakdown Cover" hint="Annual">
-            <CurrencyInput value={form.running_costs.breakdown_cover} onChange={v => setRC({ breakdown_cover: v })} placeholder="60" />
-          </Field>
-        </GridRow>
-        <GridRow>
-          <Field label="Parking / Permits" hint="Annual">
-            <CurrencyInput value={form.running_costs.parking} onChange={v => setRC({ parking: v })} placeholder="0" />
-          </Field>
-          <Field label="Other Costs" hint="Annual">
-            <CurrencyInput value={form.running_costs.other} onChange={v => setRC({ other: v })} placeholder="0" />
-          </Field>
-        </GridRow>
+        <Field label="Tyres" hint="Annual average (replacement cost ÷ lifespan)">
+          <CurrencyInput value={form.running_costs.tyres} onChange={v => setRC({ tyres: v })} placeholder="150" />
+        </Field>
       </Section>
 
       {/* ─── Save ──────────────────────────────────────────────────────────── */}

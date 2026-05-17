@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect, useState, Suspense, useRef, useCallback } from 'react';
+import { useEffect, useState, useMemo, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, Legend,
 } from 'recharts';
 import { CarWithDetails, CarMetrics } from '@/lib/types';
-import { calcMetrics, calcAnnualFuelCost, getTermMonths, calcMoneyBreakdown, BreakdownType } from '@/lib/calculations';
+import { calcMetrics, getTermMonths, calcMoneyBreakdown, BreakdownType } from '@/lib/calculations';
+
+const DEFAULT_FUEL_PRICE = 148;
+const DEFAULT_ELECTRICITY_PRICE = 28;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -112,22 +115,23 @@ const TABLE_ROWS: RowDef[] = [
     return price - price * Math.pow(1 - dep / 100, m.tco_months / 12);
   }},
 
-  // Running costs
-  { label: 'Insurance', getValue: m => `${fmt(m.running_costs.insurance / 12)}/mo`, getNumber: m => m.running_costs.insurance / 12, section: 'Monthly Running Costs' },
-  { label: 'Road Tax (VED)', getValue: m => `${fmt(m.running_costs.ved / 12)}/mo`, getNumber: m => m.running_costs.ved / 12 },
-  { label: 'Fuel / Electricity', getValue: m => `${fmt(m.annual_fuel_cost / 12)}/mo`, getNumber: m => m.annual_fuel_cost / 12 },
-  { label: 'MOT', getValue: m => `${fmt(m.running_costs.mot / 12)}/mo`, getNumber: m => m.running_costs.mot / 12 },
-  { label: 'Servicing', getValue: m => `${fmt(m.running_costs.servicing / 12)}/mo`, getNumber: m => m.running_costs.servicing / 12 },
-  { label: 'Tyres', getValue: m => `${fmt(m.running_costs.tyres / 12)}/mo`, getNumber: m => m.running_costs.tyres / 12 },
-  { label: 'Breakdown Cover', getValue: m => `${fmt(m.running_costs.breakdown_cover / 12)}/mo`, getNumber: m => m.running_costs.breakdown_cover / 12 },
-  { label: 'Parking', getValue: m => `${fmt(m.running_costs.parking / 12)}/mo`, getNumber: m => m.running_costs.parking / 12 },
-  { label: 'Other', getValue: m => `${fmt(m.running_costs.other / 12)}/mo`, getNumber: m => m.running_costs.other / 12 },
-  { label: 'Total Monthly Running', getValue: m => `${fmt(m.monthly_running_cost)}/mo`, getNumber: m => m.monthly_running_cost },
-
   // Summary
   { label: 'Monthly Finance Cost', getValue: m => fmtMo(m.monthly_finance_cost), getNumber: m => m.monthly_finance_cost, section: 'Monthly Summary' },
   { label: 'Monthly Running Cost', getValue: m => fmtMo(m.monthly_running_cost), getNumber: m => m.monthly_running_cost },
   { label: 'Total Monthly Cost', getValue: m => fmtMo(m.total_monthly_cost), getNumber: m => m.total_monthly_cost },
+  { label: 'Kept %', lowerIsBetter: false, getValue: m => {
+    const breakdown = calcMoneyBreakdown(m.finance, m.annual_running_cost);
+    const equity = breakdown.find(b => b.type === 'equity');
+    if (!equity || equity.amount <= 0) return '0%';
+    const total = breakdown.reduce((s, b) => s + b.amount, 0);
+    return total > 0 ? `${Math.round(equity.amount / total * 100)}%` : '0%';
+  }, getNumber: m => {
+    const breakdown = calcMoneyBreakdown(m.finance, m.annual_running_cost);
+    const equity = breakdown.find(b => b.type === 'equity');
+    if (!equity || equity.amount <= 0) return 0;
+    const total = breakdown.reduce((s, b) => s + b.amount, 0);
+    return total > 0 ? equity.amount / total * 100 : 0;
+  }},
   { label: 'Total Cost of Ownership', getValue: m => fmt(m.tco), getNumber: m => m.tco, section: 'Ownership Summary' },
   { label: 'Annual Mileage', getValue: m => `${m.running_costs.annual_mileage.toLocaleString('en-GB')} mi/yr` },
   { label: 'Cost per Mile', getValue: m => `${(m.cost_per_mile * 100).toFixed(1)}p`, getNumber: m => m.cost_per_mile * 100 },
@@ -158,11 +162,21 @@ function ComparisonView() {
   const router = useRouter();
   const ids = (searchParams.get('ids') ?? '').split(',').filter(Boolean);
 
-  const [metrics, setMetrics] = useState<CarMetrics[]>([]);
+  const [cars, setCars] = useState<CarWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fuelPrice, setFuelPrice] = useState(DEFAULT_FUEL_PRICE);
+  const [electricityPrice, setElectricityPrice] = useState(DEFAULT_ELECTRICITY_PRICE);
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
+
+  const metrics = useMemo(() =>
+    cars.map(d => calcMetrics({
+      ...d,
+      running_costs: { ...d.running_costs, fuel_price_ppl: fuelPrice, electricity_price_pkwh: electricityPrice },
+    })),
+    [cars, fuelPrice, electricityPrice]
+  );
 
   const syncHeaderScroll = useCallback(() => {
     if (headerScrollRef.current && tableScrollRef.current) {
@@ -175,7 +189,7 @@ function ComparisonView() {
     Promise.all(ids.map(id => fetch(`/api/cars/${id}`).then(r => r.json())))
       .then(results => {
         const valid = results.filter((r): r is CarWithDetails => !!r.car && !!r.running_costs && !!r.finance);
-        setMetrics(valid.map(calcMetrics));
+        setCars(valid);
       })
       .catch(() => setError('Failed to load comparison data.'))
       .finally(() => setLoading(false));
@@ -200,7 +214,7 @@ function ComparisonView() {
     </div>
   );
 
-  if (error || metrics.length === 0) return (
+  if (error || cars.length === 0) return (
     <div className="text-center py-24">
       <p className="text-gray-400 mb-4">{error ?? 'Could not load car data.'}</p>
       <button onClick={() => router.push('/')} className="text-blue-400 hover:text-blue-300">← Back to garage</button>
@@ -232,6 +246,36 @@ function ComparisonView() {
           </button>
           <h1 className="text-3xl font-bold text-white">Comparison</h1>
           <p className="text-gray-400 mt-1">Comparing {metrics.length} cars</p>
+        </div>
+      </div>
+
+      {/* Global price assumptions */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <span className="text-gray-400 text-sm font-medium">Global Prices</span>
+          <div className="flex items-center gap-2">
+            <label className="text-gray-500 text-sm whitespace-nowrap">Fuel</label>
+            <div className="relative">
+              <input
+                type="number" min={0} step={0.5} value={fuelPrice}
+                onChange={e => setFuelPrice(parseFloat(e.target.value) || DEFAULT_FUEL_PRICE)}
+                className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm pr-8 focus:outline-none focus:border-blue-500 transition-colors"
+              />
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-xs">p/L</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-gray-500 text-sm whitespace-nowrap">Electricity</label>
+            <div className="relative">
+              <input
+                type="number" min={0} step={0.5} value={electricityPrice}
+                onChange={e => setElectricityPrice(parseFloat(e.target.value) || DEFAULT_ELECTRICITY_PRICE)}
+                className="w-24 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm pr-12 focus:outline-none focus:border-blue-500 transition-colors"
+              />
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-xs">p/kWh</span>
+            </div>
+          </div>
+          <p className="text-gray-600 text-xs">Applied uniformly to all cars</p>
         </div>
       </div>
 
@@ -484,7 +528,7 @@ function ComparisonView() {
         <p className="text-gray-400 font-medium mb-2">Assumptions & Notes</p>
         <p>· Depreciation is estimated using a compound annual rate applied to the purchase price. Actual resale values vary by make, model, condition, and market.</p>
         <p>· TCO for Cash/Loan/HP deducts the estimated residual value; for PCP (hand back) and Lease, it doesn't (you return the car).</p>
-        <p>· Fuel costs use UK imperial MPG (1 gallon = 4.546 litres). Electric efficiency uses miles per kWh.</p>
+        <p>· Fuel costs use UK imperial MPG (1 gallon = 4.546 litres). Electric efficiency uses miles per kWh. Fuel and electricity prices are set globally at the top of this page and applied uniformly to all cars.</p>
         <p>· For Bank Loan, monthly payment is calculated using standard amortisation: P × [r(1+r)ⁿ] / [(1+r)ⁿ − 1].</p>
         <p>· Lease effective monthly cost spreads the initial rental over the contract term for fair comparison.</p>
       </div>
