@@ -70,6 +70,83 @@ function GridRow({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 gap-4">{children}</div>;
 }
 
+function DepreciationEstimator({ value, onChange, make, model, year, fuelType, annualMileage }: {
+  value: number; onChange: (v: number) => void;
+  make: string; model: string; year: number; fuelType: FuelType; annualMileage: number;
+}) {
+  const [estimating, setEstimating] = useState(false);
+  const [result, setResult] = useState<{ rate: number; year1_rate?: number; explanation: string; confidence: string } | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const canEstimate = !!(make && model);
+
+  const handleEstimate = async () => {
+    setEstimating(true);
+    setApiError(null);
+    setResult(null);
+    try {
+      const res = await fetch('/api/depreciation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ make, model, year, fuel_type: fuelType, annual_mileage: annualMileage }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Request failed');
+      setResult(data);
+    } catch (e) {
+      setApiError(e instanceof Error ? e.message : 'Estimation failed');
+    } finally {
+      setEstimating(false);
+    }
+  };
+
+  const confidenceColor = result?.confidence === 'high' ? 'text-emerald-400' : result?.confidence === 'low' ? 'text-amber-400' : 'text-blue-400';
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-300 mb-1.5">Annual Depreciation</label>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <NumberInput value={value} onChange={onChange} suffix="%" step={0.5} min={0} />
+        </div>
+        <button
+          onClick={handleEstimate}
+          disabled={!canEstimate || estimating}
+          title={!canEstimate ? 'Fill in make and model first' : `Estimate depreciation for the ${year} ${make} ${model}`}
+          className="flex-shrink-0 px-3 py-2.5 rounded-lg text-xs font-medium transition-all border disabled:opacity-40 disabled:cursor-not-allowed bg-violet-900/30 hover:bg-violet-900/50 text-violet-300 border-violet-800"
+        >
+          {estimating ? '…' : '✨ AI'}
+        </button>
+      </div>
+      {apiError && (
+        <p className="text-red-400 text-xs mt-1.5">{apiError}</p>
+      )}
+      {result && (
+        <div className="mt-2 bg-violet-950/40 border border-violet-800/50 rounded-lg p-3.5 space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <span className="text-violet-200 font-semibold">{result.rate}%/yr compound</span>
+              {result.year1_rate && result.year1_rate !== result.rate && (
+                <span className="text-gray-500 text-xs ml-2">(yr 1: ~{result.year1_rate}%)</span>
+              )}
+              <span className={`text-xs ml-2 ${confidenceColor}`}>· {result.confidence} confidence</span>
+            </div>
+            <button
+              onClick={() => { onChange(result.rate); setResult(null); }}
+              className="flex-shrink-0 text-xs bg-violet-600 hover:bg-violet-500 text-white px-3 py-1 rounded-lg transition-colors"
+            >
+              Apply
+            </button>
+          </div>
+          <p className="text-gray-400 text-xs leading-relaxed">{result.explanation}</p>
+        </div>
+      )}
+      <p className="text-xs text-gray-600 mt-1">
+        {canEstimate ? '✨ AI button gives a model-specific estimate' : 'Fill in make & model above to enable AI estimate'}
+      </p>
+    </div>
+  );
+}
+
 // Finance type descriptions
 const FINANCE_DESCRIPTIONS: Record<FinanceType, string> = {
   cash:      'Pay upfront. We estimate your monthly depreciation loss as the effective cost.',
@@ -303,9 +380,12 @@ export function CarForm({ initialData }: CarFormProps) {
               <Field label="Planned Ownership" hint="How long do you plan to keep it?">
                 <NumberInput value={form.finance.ownership_years} onChange={v => setFinance({ ownership_years: v })} suffix="years" min={1} />
               </Field>
-              <Field label="Est. Annual Depreciation" hint="UK avg: 15–20% yr 1, 10–15% thereafter">
-                <NumberInput value={form.finance.depreciation_rate} onChange={v => setFinance({ depreciation_rate: v })} suffix="%" min={0} step={0.5} />
-              </Field>
+              <DepreciationEstimator
+                value={form.finance.depreciation_rate}
+                onChange={v => setFinance({ depreciation_rate: v })}
+                make={form.make} model={form.model} year={form.year}
+                fuelType={form.fuel_type} annualMileage={form.running_costs.annual_mileage}
+              />
             </GridRow>
             {form.finance.purchase_price > 0 && (
               <div className="bg-gray-800/50 rounded-lg p-4 text-sm text-gray-400 space-y-1">
@@ -350,9 +430,12 @@ export function CarForm({ initialData }: CarFormProps) {
               </Field>
             </GridRow>
             <GridRow>
-              <Field label="Annual Depreciation" hint="To estimate residual value">
-                <NumberInput value={form.finance.depreciation_rate} onChange={v => setFinance({ depreciation_rate: v })} suffix="%" step={0.5} />
-              </Field>
+              <DepreciationEstimator
+                value={form.finance.depreciation_rate}
+                onChange={v => setFinance({ depreciation_rate: v })}
+                make={form.make} model={form.model} year={form.year}
+                fuelType={form.fuel_type} annualMileage={form.running_costs.annual_mileage}
+              />
               <Field label="Calculated Monthly Payment">
                 <div className="bg-gray-800 border border-blue-800 rounded-lg px-4 py-2.5 text-blue-300 font-semibold text-lg">
                   £{calcLoanPayment !== null ? Math.round(calcLoanPayment).toLocaleString('en-GB') : '—'}/mo
@@ -397,9 +480,12 @@ export function CarForm({ initialData }: CarFormProps) {
                 <NumberInput value={form.finance.term_months} onChange={v => setFinance({ term_months: v })} suffix="months" />
               </Field>
             </GridRow>
-            <Field label="Annual Depreciation" hint="To estimate residual value at end of term">
-              <NumberInput value={form.finance.depreciation_rate} onChange={v => setFinance({ depreciation_rate: v })} suffix="%" step={0.5} />
-            </Field>
+            <DepreciationEstimator
+              value={form.finance.depreciation_rate}
+              onChange={v => setFinance({ depreciation_rate: v })}
+              make={form.make} model={form.model} year={form.year}
+              fuelType={form.fuel_type} annualMileage={form.running_costs.annual_mileage}
+            />
           </>
         )}
 
@@ -434,9 +520,12 @@ export function CarForm({ initialData }: CarFormProps) {
               </Field>
             </GridRow>
             {form.finance.pcp_end_action === 'buy' && (
-              <Field label="Annual Depreciation" hint="Used to estimate the car's true value if you buy it at end of term">
-                <NumberInput value={form.finance.depreciation_rate} onChange={v => setFinance({ depreciation_rate: v })} suffix="%" step={0.5} />
-              </Field>
+              <DepreciationEstimator
+                value={form.finance.depreciation_rate}
+                onChange={v => setFinance({ depreciation_rate: v })}
+                make={form.make} model={form.model} year={form.year}
+                fuelType={form.fuel_type} annualMileage={form.running_costs.annual_mileage}
+              />
             )}
             {form.finance.monthly_payment > 0 && form.finance.term_months > 0 && (
               <div className="bg-gray-800/50 rounded-lg p-4 text-sm text-gray-400 space-y-1">

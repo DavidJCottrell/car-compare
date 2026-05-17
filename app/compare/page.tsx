@@ -73,6 +73,35 @@ const TABLE_ROWS: RowDef[] = [
     return 'You own it';
   }},
   { label: 'Depreciation Rate', getValue: m => ['cash','bank_loan','hp'].includes(m.finance.finance_type) || (m.finance.finance_type === 'pcp' && m.finance.pcp_end_action === 'buy') ? pct(m.finance.depreciation_rate) : '—' },
+  { label: 'Est. Residual Value', getValue: m => {
+    const ft = m.finance.finance_type;
+    const price = m.finance.purchase_price ?? 0;
+    if (!price || ft === 'lease' || (ft === 'pcp' && m.finance.pcp_end_action !== 'buy')) return 'N/A';
+    const dep = m.finance.depreciation_rate ?? 15;
+    const years = m.tco_months / 12;
+    return fmt(price * Math.pow(1 - dep / 100, years));
+  }, getNumber: m => {
+    const ft = m.finance.finance_type;
+    const price = m.finance.purchase_price ?? 0;
+    if (!price || ft === 'lease' || (ft === 'pcp' && m.finance.pcp_end_action !== 'buy')) return 0;
+    const dep = m.finance.depreciation_rate ?? 15;
+    return price * Math.pow(1 - dep / 100, m.tco_months / 12);
+  }},
+  { label: 'Depreciation Loss (£)', getValue: m => {
+    const ft = m.finance.finance_type;
+    const price = m.finance.purchase_price ?? 0;
+    if (!price || ft === 'lease' || (ft === 'pcp' && m.finance.pcp_end_action !== 'buy')) return 'N/A';
+    const dep = m.finance.depreciation_rate ?? 15;
+    const years = m.tco_months / 12;
+    const loss = price - price * Math.pow(1 - dep / 100, years);
+    return `−${fmt(loss)}`;
+  }, getNumber: m => {
+    const ft = m.finance.finance_type;
+    const price = m.finance.purchase_price ?? 0;
+    if (!price || ft === 'lease' || (ft === 'pcp' && m.finance.pcp_end_action !== 'buy')) return 0;
+    const dep = m.finance.depreciation_rate ?? 15;
+    return price - price * Math.pow(1 - dep / 100, m.tco_months / 12);
+  }},
 
   // Running costs
   { label: 'Insurance', getValue: m => fmt(m.running_costs.insurance), getNumber: m => m.running_costs.insurance, section: 'Annual Running Costs' },
@@ -208,6 +237,20 @@ function ComparisonView() {
                 <span className="text-gray-500">TCO</span>
                 <span className="text-gray-300 font-medium">{fmt(m.tco)}</span>
               </div>
+              {(() => {
+                const ft = m.finance.finance_type;
+                const price = m.finance.purchase_price ?? 0;
+                const dep = m.finance.depreciation_rate ?? 15;
+                const years = m.tco_months / 12;
+                const showDep = price > 0 && ft !== 'lease' && !(ft === 'pcp' && m.finance.pcp_end_action !== 'buy');
+                const depLoss = showDep ? price - price * Math.pow(1 - dep / 100, years) : 0;
+                return showDep ? (
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-gray-500">Depreciation loss</span>
+                    <span className="text-red-400 font-medium">−{fmt(depLoss)}</span>
+                  </div>
+                ) : null;
+              })()}
               <div className="flex justify-between text-sm mt-1">
                 <span className="text-gray-500">per mile</span>
                 <span className="text-gray-300 font-medium">{(m.cost_per_mile * 100).toFixed(1)}p</span>
