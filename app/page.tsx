@@ -10,7 +10,32 @@ export default function DashboardPage() {
   const [cars, setCars] = useState<CarWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [notDoableIds, setNotDoableIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [budget, setBudget] = useState<string>('');
+
+  useEffect(() => {
+    const savedBudget = localStorage.getItem('garage-monthly-budget');
+    if (savedBudget) setBudget(savedBudget);
+    const savedNotDoable = localStorage.getItem('garage-not-doable-ids');
+    if (savedNotDoable) {
+      try { setNotDoableIds(new Set(JSON.parse(savedNotDoable))); } catch { /* ignore */ }
+    }
+  }, []);
+
+  const handleBudgetChange = (value: string) => {
+    setBudget(value);
+    localStorage.setItem('garage-monthly-budget', value);
+  };
+
+  const toggleNotDoable = (id: string) => {
+    setNotDoableIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      localStorage.setItem('garage-not-doable-ids', JSON.stringify(Array.from(next)));
+      return next;
+    });
+  };
 
   const fetchCars = useCallback(async () => {
     try {
@@ -39,6 +64,12 @@ export default function DashboardPage() {
     if (!confirm('Remove this car from your garage?')) return;
     await fetch(`/api/cars/${id}`, { method: 'DELETE' });
     setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+    setNotDoableIds(prev => {
+      const n = new Set(prev);
+      n.delete(id);
+      localStorage.setItem('garage-not-doable-ids', JSON.stringify(Array.from(n)));
+      return n;
+    });
     fetchCars();
   };
 
@@ -47,10 +78,12 @@ export default function DashboardPage() {
     router.push(`/compare?ids=${ids}`);
   };
 
+  const budgetNum = budget ? parseFloat(budget) : null;
+
   return (
     <>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-white">My Garage</h1>
           <p className="text-gray-400 mt-1">
@@ -66,6 +99,31 @@ export default function DashboardPage() {
           >
             Clear selection
           </button>
+        )}
+      </div>
+
+      {/* Budget input */}
+      <div className="flex items-center gap-3 mb-8 p-4 bg-gray-900 border border-gray-800 rounded-xl">
+        <label className="text-gray-400 text-sm font-medium whitespace-nowrap">Monthly budget</label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">£</span>
+          <input
+            type="number"
+            min="0"
+            step="50"
+            value={budget}
+            onChange={e => handleBudgetChange(e.target.value)}
+            placeholder="e.g. 500"
+            className="bg-gray-800 border border-gray-700 rounded-lg pl-7 pr-3 py-2 text-white text-sm w-36 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 placeholder-gray-600"
+          />
+        </div>
+        {budgetNum && (
+          <span className="text-gray-500 text-xs">
+            Max you want to spend per month
+          </span>
+        )}
+        {!budget && (
+          <span className="text-gray-600 text-xs">Set a max monthly spend to see how each car compares</span>
         )}
       </div>
 
@@ -108,7 +166,10 @@ export default function DashboardPage() {
               key={data.car.id}
               data={data}
               selected={selectedIds.has(data.car.id)}
+              notDoable={notDoableIds.has(data.car.id)}
+              budget={budgetNum}
               onToggleSelect={toggleSelect}
+              onToggleNotDoable={toggleNotDoable}
               onDelete={handleDelete}
             />
           ))}

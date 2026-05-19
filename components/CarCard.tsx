@@ -22,26 +22,40 @@ const fmtMo = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}/mo`;
 interface CarCardProps {
   data: CarWithDetails;
   selected: boolean;
+  notDoable: boolean;
+  budget: number | null;
   onToggleSelect: (id: string) => void;
+  onToggleNotDoable: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
-export function CarCard({ data, selected, onToggleSelect, onDelete }: CarCardProps) {
+export function CarCard({ data, selected, notDoable, budget, onToggleSelect, onToggleNotDoable, onDelete }: CarCardProps) {
   const metrics = calcMetrics(data);
   const ft = data.finance?.finance_type;
   const badge = ft ? FINANCE_LABELS[ft] : null;
+
+  const budgetDelta = budget !== null ? metrics.total_monthly_cost - budget : null;
 
   return (
     <div
       onClick={() => onToggleSelect(data.car.id)}
       className={`relative rounded-xl border cursor-pointer transition-all duration-200 ${
-        selected
-          ? 'border-blue-500 bg-gray-900 shadow-xl shadow-blue-500/10 ring-1 ring-blue-500/20'
-          : 'border-gray-800 bg-gray-900 hover:border-gray-600'
+        notDoable
+          ? 'border-red-900/60 bg-gray-900/70 opacity-70'
+          : selected
+            ? 'border-blue-500 bg-gray-900 shadow-xl shadow-blue-500/10 ring-1 ring-blue-500/20'
+            : 'border-gray-800 bg-gray-900 hover:border-gray-600'
       }`}
     >
+      {/* Not doable banner */}
+      {notDoable && (
+        <div className="absolute inset-x-0 top-0 flex items-center justify-center rounded-t-xl bg-red-900/40 border-b border-red-900/60 py-1 pointer-events-none z-10">
+          <span className="text-red-400 text-xs font-semibold tracking-widest uppercase">Not doable</span>
+        </div>
+      )}
+
       {/* Selection checkbox */}
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4 z-20">
         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
           selected ? 'bg-blue-500 border-blue-500' : 'border-gray-600 bg-gray-800'
         }`}>
@@ -53,14 +67,16 @@ export function CarCard({ data, selected, onToggleSelect, onDelete }: CarCardPro
         </div>
       </div>
 
-      <div className="p-5">
+      <div className={`p-5 ${notDoable ? 'pt-8' : ''}`}>
         {/* Header */}
         <div className="pr-8 mb-3">
           <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">
             {data.car.year} · {FUEL_ICONS[data.car.fuel_type]} {data.car.fuel_type.charAt(0).toUpperCase() + data.car.fuel_type.slice(1)}
             {data.car.colour ? ` · ${data.car.colour}` : ''}
           </p>
-          <h3 className="text-white font-semibold text-lg leading-tight">{data.car.nickname}</h3>
+          <h3 className={`font-semibold text-lg leading-tight ${notDoable ? 'text-gray-400 line-through decoration-red-700/60' : 'text-white'}`}>
+            {data.car.nickname}
+          </h3>
           {data.car.nickname !== `${data.car.year} ${data.car.make} ${data.car.model}` && (
             <p className="text-gray-500 text-sm">{data.car.make} {data.car.model}</p>
           )}
@@ -84,6 +100,13 @@ export function CarCard({ data, selected, onToggleSelect, onDelete }: CarCardPro
           <div className="bg-gray-800/60 rounded-lg p-3">
             <p className="text-gray-500 text-xs mb-0.5">Total / month</p>
             <p className="text-white font-bold text-xl">{fmtMo(metrics.total_monthly_cost)}</p>
+            {budgetDelta !== null && (
+              <p className={`text-xs mt-0.5 font-medium ${budgetDelta > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                {budgetDelta > 0
+                  ? `£${Math.round(budgetDelta).toLocaleString('en-GB')} over`
+                  : `£${Math.round(Math.abs(budgetDelta)).toLocaleString('en-GB')} under`}
+              </p>
+            )}
           </div>
           <div className="bg-gray-800/60 rounded-lg p-3">
             <p className="text-gray-500 text-xs mb-0.5">Annual running</p>
@@ -112,6 +135,17 @@ export function CarCard({ data, selected, onToggleSelect, onDelete }: CarCardPro
           >
             Edit
           </Link>
+          <button
+            onClick={() => onToggleNotDoable(data.car.id)}
+            title={notDoable ? 'Mark as doable' : 'Mark as not doable'}
+            className={`text-sm px-3 py-2 rounded-lg border transition-colors ${
+              notDoable
+                ? 'text-red-400 border-red-900 hover:border-red-700 hover:text-red-300'
+                : 'text-gray-500 border-gray-700 hover:text-red-400 hover:border-red-900'
+            }`}
+          >
+            {notDoable ? '↩' : '✗'}
+          </button>
           <button
             onClick={() => onDelete(data.car.id)}
             className="text-sm text-gray-500 hover:text-red-400 px-3 py-2 rounded-lg border border-gray-700 hover:border-red-900 transition-colors"
