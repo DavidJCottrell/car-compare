@@ -17,7 +17,10 @@ const FUEL_ICONS: Record<string, string> = {
 };
 
 const fmt = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
+const fmtSigned = (n: number) => n >= 0 ? fmt(n) : `-£${Math.round(-n).toLocaleString('en-GB')}`;
 const fmtMo = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}/mo`;
+
+const MONTHLY_BUDGET = 800;
 
 interface CarCardProps {
   data: CarWithDetails;
@@ -30,6 +33,7 @@ export function CarCard({ data, selected, onToggleSelect, onDelete }: CarCardPro
   const metrics = calcMetrics(data);
   const ft = data.finance?.finance_type;
   const badge = ft ? FINANCE_LABELS[ft] : null;
+  const extraSaved = (MONTHLY_BUDGET - metrics.total_monthly_cost) * metrics.tco_months;
 
   return (
     <div
@@ -86,8 +90,8 @@ export function CarCard({ data, selected, onToggleSelect, onDelete }: CarCardPro
             <p className="text-white font-bold text-xl">{fmtMo(metrics.total_monthly_cost)}</p>
           </div>
           <div className="bg-gray-800/60 rounded-lg p-3">
-            <p className="text-gray-500 text-xs mb-0.5">Annual running</p>
-            <p className="text-white font-semibold">{fmt(metrics.annual_running_cost)}/yr</p>
+            <p className="text-gray-500 text-xs mb-0.5">Extra saved</p>
+            <p className={`font-semibold ${extraSaved >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmtSigned(extraSaved)}</p>
           </div>
         </div>
 
