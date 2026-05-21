@@ -7,7 +7,7 @@ import {
   ResponsiveContainer, Cell, Legend,
 } from 'recharts';
 import { CarWithDetails, CarMetrics } from '@/lib/types';
-import { calcMetrics, getTermMonths, calcMoneyBreakdown, BreakdownType } from '@/lib/calculations';
+import { calcMetrics, getTermMonths, calcMoneyBreakdown, calcTotalEquity, MONTHLY_BUDGET, SAVINGS_POT, BreakdownType } from '@/lib/calculations';
 
 const DEFAULT_FUEL_PRICE = 155;
 const DEFAULT_ELECTRICITY_PRICE = 57;
@@ -30,8 +30,6 @@ const FINANCE_LABELS: Record<string, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const MONTHLY_BUDGET = 800;
-const SAVINGS_POT = 4_000;
 
 const fmt = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
 const fmtMo = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}/mo`;
@@ -59,33 +57,6 @@ interface RowDef {
   section?: string;
   note?: string;
   lowerIsBetter?: boolean;
-}
-
-function calcTotalEquity(m: CarMetrics): number {
-  const ft = m.finance.finance_type;
-  const price = m.finance.purchase_price ?? 0;
-  const dep = m.finance.depreciation_rate ?? 15;
-  const years = m.tco_months / 12;
-  const extraSaved = (MONTHLY_BUDGET - m.total_monthly_cost) * m.tco_months;
-
-  const upfront =
-    ft === 'cash'  ? price
-    : ft === 'lease' ? (m.finance.initial_rental_months ?? 3) * (m.finance.monthly_payment ?? 0)
-    : (m.finance.deposit ?? 0);
-
-  const savingsLeft = Math.max(0, SAVINGS_POT - upfront);
-
-  const assetAtEnd =
-    price > 0 && ft !== 'lease' && !(ft === 'pcp' && m.finance.pcp_end_action !== 'buy')
-      ? price * Math.pow(1 - dep / 100, years)
-      : 0;
-
-  const balloon =
-    ft === 'pcp' && m.finance.pcp_end_action === 'buy'
-      ? (m.finance.balloon_payment ?? 0)
-      : 0;
-
-  return savingsLeft + extraSaved + assetAtEnd - balloon;
 }
 
 const TABLE_ROWS: RowDef[] = [

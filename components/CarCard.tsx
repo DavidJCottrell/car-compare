@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { CarWithDetails } from '@/lib/types';
-import { calcMetrics } from '@/lib/calculations';
+import { calcMetrics, calcTotalEquity } from '@/lib/calculations';
 
 const FINANCE_LABELS: Record<string, { label: string; color: string }> = {
   cash:      { label: 'Cash',          color: 'bg-emerald-900/50 text-emerald-400 border-emerald-800' },
@@ -20,8 +20,6 @@ const fmt = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
 const fmtSigned = (n: number) => n >= 0 ? fmt(n) : `-£${Math.round(-n).toLocaleString('en-GB')}`;
 const fmtMo = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}/mo`;
 
-const MONTHLY_BUDGET = 800;
-
 interface CarCardProps {
   data: CarWithDetails;
   selected: boolean;
@@ -33,7 +31,7 @@ export function CarCard({ data, selected, onToggleSelect, onDelete }: CarCardPro
   const metrics = calcMetrics(data);
   const ft = data.finance?.finance_type;
   const badge = ft ? FINANCE_LABELS[ft] : null;
-  const extraSaved = (MONTHLY_BUDGET - metrics.total_monthly_cost) * metrics.tco_months;
+  const totalEquity = calcTotalEquity(metrics);
 
   return (
     <div
@@ -90,8 +88,8 @@ export function CarCard({ data, selected, onToggleSelect, onDelete }: CarCardPro
             <p className="text-white font-bold text-xl">{fmtMo(metrics.total_monthly_cost)}</p>
           </div>
           <div className="bg-gray-800/60 rounded-lg p-3">
-            <p className="text-gray-500 text-xs mb-0.5">Extra saved</p>
-            <p className={`font-semibold ${extraSaved >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmtSigned(extraSaved)}</p>
+            <p className="text-gray-500 text-xs mb-0.5">Total equity</p>
+            <p className={`font-semibold ${totalEquity >= 0 ? 'text-teal-400' : 'text-red-400'}`}>{fmtSigned(totalEquity)}</p>
           </div>
         </div>
 
