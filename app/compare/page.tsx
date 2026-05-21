@@ -31,6 +31,7 @@ const FINANCE_LABELS: Record<string, string> = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const MONTHLY_BUDGET = 800;
+const SAVINGS_POT = 4_000;
 
 const fmt = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
 const fmtMo = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}/mo`;
@@ -56,7 +57,35 @@ interface RowDef {
   getValue: (m: CarMetrics) => string;
   getNumber?: (m: CarMetrics) => number;
   section?: string;
+  note?: string;
   lowerIsBetter?: boolean;
+}
+
+function calcTotalEquity(m: CarMetrics): number {
+  const ft = m.finance.finance_type;
+  const price = m.finance.purchase_price ?? 0;
+  const dep = m.finance.depreciation_rate ?? 15;
+  const years = m.tco_months / 12;
+  const extraSaved = (MONTHLY_BUDGET - m.total_monthly_cost) * m.tco_months;
+
+  const upfront =
+    ft === 'cash'  ? price
+    : ft === 'lease' ? (m.finance.initial_rental_months ?? 3) * (m.finance.monthly_payment ?? 0)
+    : (m.finance.deposit ?? 0);
+
+  const savingsLeft = Math.max(0, SAVINGS_POT - upfront);
+
+  const assetAtEnd =
+    price > 0 && ft !== 'lease' && !(ft === 'pcp' && m.finance.pcp_end_action !== 'buy')
+      ? price * Math.pow(1 - dep / 100, years)
+      : 0;
+
+  const balloon =
+    ft === 'pcp' && m.finance.pcp_end_action === 'buy'
+      ? (m.finance.balloon_payment ?? 0)
+      : 0;
+
+  return savingsLeft + extraSaved + assetAtEnd - balloon;
 }
 
 const TABLE_ROWS: RowDef[] = [
@@ -131,6 +160,13 @@ const TABLE_ROWS: RowDef[] = [
   { label: 'Annual Mileage', getValue: m => `${m.running_costs.annual_mileage.toLocaleString('en-GB')} mi/yr` },
   { label: 'Cost / mile', getValue: m => `${(m.cost_per_mile * 100).toFixed(1)}p`, getNumber: m => m.cost_per_mile * 100 },
   { label: 'Extra Saved', lowerIsBetter: false, getValue: m => fmtSigned((MONTHLY_BUDGET - m.total_monthly_cost) * m.tco_months), getNumber: m => (MONTHLY_BUDGET - m.total_monthly_cost) * m.tco_months },
+  {
+    label: 'Total Equity at End of Term',
+    note: `£${(SAVINGS_POT / 1000).toFixed(0)}k savings − upfront + extra saved + asset`,
+    lowerIsBetter: false,
+    getValue: m => fmtSigned(calcTotalEquity(m)),
+    getNumber: m => calcTotalEquity(m),
+  },
 ];
 
 // ─── Custom tooltip ───────────────────────────────────────────────────────────
@@ -427,6 +463,7 @@ function ComparisonView() {
                     <tr key={row.label} className={`border-t border-gray-800/50 ${rowIdx % 2 === 0 ? '' : 'bg-gray-800/20'}`}>
                       <td className="py-3 px-3 sm:px-5 text-gray-400 text-xs sm:text-sm w-28 sm:w-40 sticky left-0 bg-gray-900 z-10 border-r border-gray-800/50">
                         {row.label}
+                        {row.note && <div className="text-gray-600 text-[10px] mt-0.5 leading-tight">{row.note}</div>}
                       </td>
                       {metrics.map((m, i) => {
                         const cellNumber = row.getNumber ? row.getNumber(m) : 0;
