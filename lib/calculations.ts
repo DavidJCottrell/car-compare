@@ -8,7 +8,7 @@ export function calcAnnualFuelCost(rc: RunningCosts, fuelType: FuelType): number
   }
   if (fuelType === 'electric') {
     const mpkwh = rc.miles_per_kwh ?? 3.5;
-    const pkwh = rc.electricity_price_pkwh ?? 28;
+    const pkwh = rc.electricity_price_pkwh ?? 57;
     return mpkwh > 0 ? (rc.annual_mileage / mpkwh * pkwh) / 100 : 0;
   }
   // petrol, diesel, hybrid, phev — use MPG

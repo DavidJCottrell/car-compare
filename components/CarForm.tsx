@@ -633,7 +633,6 @@ export function CarForm({ initialData }: CarFormProps) {
               <Field label="Efficiency" hint="Miles per kWh (typical: 3–4)">
                 <NumberInput value={form.running_costs.miles_per_kwh} onChange={v => setRC({ miles_per_kwh: v })} suffix="mi/kWh" step={0.1} />
               </Field>
-              <p className="text-xs text-gray-500 -mt-2">Electricity price is set globally on the comparison page (default: 28p/kWh).</p>
             </>
           ) : (
             <>
