@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { CarWithDetails } from '@/lib/types';
-import { calcMetrics, calcTotalEquity } from '@/lib/calculations';
+import { calcMetrics, calcTotalEquity, calcEquityBuiltPerYear } from '@/lib/calculations';
 
 const FINANCE_LABELS: Record<string, { label: string; color: string }> = {
   cash:      { label: 'Cash',          color: 'bg-emerald-900/50 text-emerald-400 border-emerald-800' },
@@ -32,6 +32,7 @@ export function CarCard({ data, selected, onToggleSelect, onDelete }: CarCardPro
   const ft = data.finance?.finance_type;
   const badge = ft ? FINANCE_LABELS[ft] : null;
   const totalEquity = calcTotalEquity(metrics);
+  const equityPerYear = calcEquityBuiltPerYear(metrics);
 
   return (
     <div
@@ -95,14 +96,10 @@ export function CarCard({ data, selected, onToggleSelect, onDelete }: CarCardPro
 
         <div className="bg-gray-800/40 rounded-lg p-3 mb-4">
           <div className="flex justify-between items-center">
-            <span className="text-gray-500 text-xs">
-              TCO over {Math.round(metrics.tco_months / 12 * 10) / 10} yr{metrics.tco_months !== 12 ? 's' : ''}
+            <span className="text-gray-500 text-xs">Equity built per year</span>
+            <span className={`font-semibold text-sm ${equityPerYear >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
+              {fmtSigned(equityPerYear)}/yr
             </span>
-            <span className="text-gray-300 font-semibold text-sm">{fmt(metrics.tco)}</span>
-          </div>
-          <div className="flex justify-between items-center mt-1">
-            <span className="text-gray-500 text-xs">Cost per mile</span>
-            <span className="text-gray-400 text-sm">{(metrics.cost_per_mile * 100).toFixed(1)}p/mile</span>
           </div>
         </div>
 
