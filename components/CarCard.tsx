@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { CarWithDetails } from '@/lib/types';
-import { calcMetrics, calcTotalEquity, calcEquityBuiltPerYear } from '@/lib/calculations';
+import { calcMetrics, calcTotalEquity, calcEquityBuiltPerYear, calcEquityBreakdownPerYear, getTermMonths } from '@/lib/calculations';
 
 const FINANCE_LABELS: Record<string, { label: string; color: string }> = {
   cash:      { label: 'Cash',          color: 'bg-emerald-900/50 text-emerald-400 border-emerald-800' },
@@ -33,6 +33,8 @@ export function CarCard({ data, selected, onToggleSelect, onDelete }: CarCardPro
   const badge = ft ? FINANCE_LABELS[ft] : null;
   const totalEquity = calcTotalEquity(metrics);
   const equityPerYear = calcEquityBuiltPerYear(metrics);
+  const equityBreakdown = calcEquityBreakdownPerYear(metrics);
+  const termYears = data.finance ? Math.round(getTermMonths(data.finance) / 12) : null;
 
   return (
     <div
@@ -77,7 +79,10 @@ export function CarCard({ data, selected, onToggleSelect, onDelete }: CarCardPro
               <span className="opacity-70">· {fmtMo(data.finance.monthly_payment)}</span>
             )}
             {ft === 'bank_loan' && (
-              <span className="opacity-70">· {fmtMo(metrics.monthly_finance_cost)}/mo calc.</span>
+              <span className="opacity-70">· {fmtMo(metrics.monthly_finance_cost)} calc.</span>
+            )}
+            {termYears !== null && termYears > 0 && (
+              <span className="opacity-70">· {termYears} yr{termYears !== 1 ? 's' : ''}</span>
             )}
           </div>
         )}
@@ -95,11 +100,25 @@ export function CarCard({ data, selected, onToggleSelect, onDelete }: CarCardPro
         </div>
 
         <div className="bg-gray-800/40 rounded-lg p-3 mb-4">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-2">
             <span className="text-gray-500 text-xs">Equity built per year</span>
             <span className={`font-semibold text-sm ${equityPerYear >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
               {fmtSigned(equityPerYear)}/yr
             </span>
+          </div>
+          <div className="border-t border-gray-700/50 pt-2 space-y-1">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600 text-xs">Asset value</span>
+              <span className={`text-xs ${equityBreakdown.assetPerYear >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
+                {fmtSigned(equityBreakdown.assetPerYear)}/yr
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600 text-xs">Extra savings</span>
+              <span className={`text-xs ${equityBreakdown.savingsPerYear >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
+                {fmtSigned(equityBreakdown.savingsPerYear)}/yr
+              </span>
+            </div>
           </div>
         </div>
 
