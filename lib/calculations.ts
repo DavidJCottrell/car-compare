@@ -165,6 +165,41 @@ export function calcEquityBuiltPerYear(m: CarMetrics): number {
   return years > 0 ? calcTotalEquity(m) / years : 0;
 }
 
+export interface EquityBreakdownPerYear {
+  assetPerYear: number;
+  savingsPerYear: number;
+}
+
+export function calcEquityBreakdownPerYear(m: CarMetrics): EquityBreakdownPerYear {
+  const ft = m.finance.finance_type;
+  const price = m.finance.purchase_price ?? 0;
+  const dep = m.finance.depreciation_rate ?? 15;
+  const years = m.tco_months / 12;
+  const extraSaved = (MONTHLY_BUDGET - m.total_monthly_cost) * m.tco_months;
+
+  const upfront =
+    ft === 'cash' ? price
+    : ft === 'lease' ? (m.finance.initial_rental_months ?? 3) * (m.finance.monthly_payment ?? 0)
+    : (m.finance.deposit ?? 0);
+
+  const savingsLeft = Math.max(0, SAVINGS_POT - upfront);
+
+  const assetAtEnd =
+    price > 0 && ft !== 'lease' && !(ft === 'pcp' && m.finance.pcp_end_action !== 'buy')
+      ? price * Math.pow(1 - dep / 100, years)
+      : 0;
+
+  const balloon =
+    ft === 'pcp' && m.finance.pcp_end_action === 'buy'
+      ? (m.finance.balloon_payment ?? 0)
+      : 0;
+
+  return {
+    assetPerYear: years > 0 ? (assetAtEnd - balloon) / years : 0,
+    savingsPerYear: years > 0 ? (savingsLeft + extraSaved) / years : 0,
+  };
+}
+
 export function calcTotalEquity(m: CarMetrics): number {
   const ft = m.finance.finance_type;
   const price = m.finance.purchase_price ?? 0;
