@@ -9,8 +9,8 @@ import {
 import { CarWithDetails, CarMetrics } from '@/lib/types';
 import { calcMetrics, getTermMonths, calcMoneyBreakdown, BreakdownType } from '@/lib/calculations';
 
-const DEFAULT_FUEL_PRICE = 148;
-const DEFAULT_ELECTRICITY_PRICE = 28;
+const DEFAULT_FUEL_PRICE = 155;
+const DEFAULT_ELECTRICITY_PRICE = 57;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
