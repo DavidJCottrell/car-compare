@@ -160,6 +160,11 @@ export interface BreakdownItem {
 export const MONTHLY_BUDGET = 800;
 export const SAVINGS_POT = 4_000;
 
+export function calcEquityBuiltPerYear(m: CarMetrics): number {
+  const years = m.tco_months / 12;
+  return years > 0 ? calcTotalEquity(m) / years : 0;
+}
+
 export function calcTotalEquity(m: CarMetrics): number {
   const ft = m.finance.finance_type;
   const price = m.finance.purchase_price ?? 0;
