@@ -157,6 +157,36 @@ export interface BreakdownItem {
   note?: string;
 }
 
+export const MONTHLY_BUDGET = 800;
+export const SAVINGS_POT = 4_000;
+
+export function calcTotalEquity(m: CarMetrics): number {
+  const ft = m.finance.finance_type;
+  const price = m.finance.purchase_price ?? 0;
+  const dep = m.finance.depreciation_rate ?? 15;
+  const years = m.tco_months / 12;
+  const extraSaved = (MONTHLY_BUDGET - m.total_monthly_cost) * m.tco_months;
+
+  const upfront =
+    ft === 'cash' ? price
+    : ft === 'lease' ? (m.finance.initial_rental_months ?? 3) * (m.finance.monthly_payment ?? 0)
+    : (m.finance.deposit ?? 0);
+
+  const savingsLeft = Math.max(0, SAVINGS_POT - upfront);
+
+  const assetAtEnd =
+    price > 0 && ft !== 'lease' && !(ft === 'pcp' && m.finance.pcp_end_action !== 'buy')
+      ? price * Math.pow(1 - dep / 100, years)
+      : 0;
+
+  const balloon =
+    ft === 'pcp' && m.finance.pcp_end_action === 'buy'
+      ? (m.finance.balloon_payment ?? 0)
+      : 0;
+
+  return savingsLeft + extraSaved + assetAtEnd - balloon;
+}
+
 export function calcMoneyBreakdown(finance: FinanceOption, annualRunning: number): BreakdownItem[] {
   const termMonths = getTermMonths(finance);
   const termYears = termMonths / 12;
