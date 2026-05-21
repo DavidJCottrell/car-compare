@@ -13,7 +13,7 @@ export function calcAnnualFuelCost(rc: RunningCosts, fuelType: FuelType): number
   }
   // petrol, diesel, hybrid, phev — use MPG
   const mpg = rc.mpg ?? 35;
-  const ppl = rc.fuel_price_ppl ?? 148;
+  const ppl = rc.fuel_price_ppl ?? 155;
   const litresPerMile = mpg > 0 ? LITRES_PER_GALLON / mpg : 0;
   return (rc.annual_mileage * litresPerMile * ppl) / 100;
 }

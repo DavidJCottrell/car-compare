@@ -233,13 +233,13 @@ export function CarForm({ initialData }: CarFormProps) {
     return calcLoanMonthlyPayment(principal, form.finance.apr, form.finance.term_months);
   }, [form.finance.finance_type, form.finance.purchase_price, form.finance.deposit, form.finance.apr, form.finance.term_months]);
 
-  // Live annual fuel estimate (uses default global prices of 148p/L, 28p/kWh)
+  // Live annual fuel estimate (uses default global prices of 155p/L, 57p/kWh)
   const estimatedFuelCost = useMemo(() => {
     if (form.running_costs.fuel_method === 'manual') return null;
     const rc = {
       ...form.running_costs,
-      fuel_price_ppl: 148,
-      electricity_price_pkwh: 28,
+      fuel_price_ppl: 155,
+      electricity_price_pkwh: 57,
       breakdown_cover: 0,
       parking: 0,
       other: 0,
@@ -640,7 +640,7 @@ export function CarForm({ initialData }: CarFormProps) {
               <Field label="Fuel Economy" hint="MPG (combined)">
                 <NumberInput value={form.running_costs.mpg} onChange={v => setRC({ mpg: v })} suffix="MPG" step={0.5} />
               </Field>
-              <p className="text-xs text-gray-500 -mt-2">Fuel price is set globally on the comparison page (default: 148p/L).</p>
+              <p className="text-xs text-gray-500 -mt-2">Fuel price is set globally on the comparison page (default: 155p/L).</p>
             </>
           )}
 
