@@ -30,8 +30,11 @@ const FINANCE_LABELS: Record<string, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+const MONTHLY_BUDGET = 800;
+
 const fmt = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
 const fmtMo = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}/mo`;
+const fmtSigned = (n: number) => n >= 0 ? fmt(n) : `-£${Math.round(-n).toLocaleString('en-GB')}`;
 const pct = (n: number | null) => n !== null ? `${n}%` : '—';
 const dash = (v: number | null | undefined, formatter = fmt) => (v != null && v > 0) ? formatter(v) : '—';
 
@@ -127,6 +130,7 @@ const TABLE_ROWS: RowDef[] = [
   { label: 'TCO', getValue: m => fmt(m.tco), getNumber: m => m.tco, section: 'Ownership' },
   { label: 'Annual Mileage', getValue: m => `${m.running_costs.annual_mileage.toLocaleString('en-GB')} mi/yr` },
   { label: 'Cost / mile', getValue: m => `${(m.cost_per_mile * 100).toFixed(1)}p`, getNumber: m => m.cost_per_mile * 100 },
+  { label: 'Extra Saved', lowerIsBetter: false, getValue: m => fmtSigned((MONTHLY_BUDGET - m.total_monthly_cost) * m.tco_months), getNumber: m => (MONTHLY_BUDGET - m.total_monthly_cost) * m.tco_months },
 ];
 
 // ─── Custom tooltip ───────────────────────────────────────────────────────────
