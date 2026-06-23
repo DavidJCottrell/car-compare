@@ -175,7 +175,10 @@ export function calcEquityBreakdownPerYear(m: CarMetrics, monthlyBudget: number 
   const price = m.finance.purchase_price ?? 0;
   const dep = m.finance.depreciation_rate ?? 15;
   const years = m.tco_months / 12;
-  const extraSaved = (monthlyBudget - m.total_monthly_cost) * m.tco_months;
+  // Use the rounded monthly cost so this matches the "Total / month" figure shown
+  // on the card — otherwise sub-£1 fractions make it non-zero when the displayed
+  // numbers are equal (e.g. £479 budget vs a £478.66 cost shown as £479).
+  const extraSaved = (Math.round(monthlyBudget) - Math.round(m.total_monthly_cost)) * m.tco_months;
 
   const assetAtEnd =
     price > 0 && ft !== 'lease' && !(ft === 'pcp' && m.finance.pcp_end_action !== 'buy')
@@ -200,7 +203,10 @@ export function calcTotalEquity(m: CarMetrics, monthlyBudget: number = MONTHLY_B
   const price = m.finance.purchase_price ?? 0;
   const dep = m.finance.depreciation_rate ?? 15;
   const years = m.tco_months / 12;
-  const extraSaved = (monthlyBudget - m.total_monthly_cost) * m.tco_months;
+  // Use the rounded monthly cost so this matches the "Total / month" figure shown
+  // on the card — otherwise sub-£1 fractions make it non-zero when the displayed
+  // numbers are equal (e.g. £479 budget vs a £478.66 cost shown as £479).
+  const extraSaved = (Math.round(monthlyBudget) - Math.round(m.total_monthly_cost)) * m.tco_months;
 
   const upfront =
     ft === 'cash' ? price
