@@ -7,7 +7,7 @@ import {
   ResponsiveContainer, Cell, Legend,
 } from 'recharts';
 import { CarWithDetails, CarMetrics } from '@/lib/types';
-import { calcMetrics, getTermMonths, calcMoneyBreakdown, calcTotalEquity, MONTHLY_BUDGET, SAVINGS_POT, BreakdownType } from '@/lib/calculations';
+import { calcMetrics, getTermMonths, calcMoneyBreakdown, calcTotalEquity, MONTHLY_BUDGET, BreakdownType } from '@/lib/calculations';
 
 const DEFAULT_FUEL_PRICE = 155;
 const DEFAULT_ELECTRICITY_PRICE = 57;
@@ -133,7 +133,7 @@ const TABLE_ROWS: RowDef[] = [
   { label: 'Extra Saved', lowerIsBetter: false, getValue: m => fmtSigned((MONTHLY_BUDGET - m.total_monthly_cost) * m.tco_months), getNumber: m => (MONTHLY_BUDGET - m.total_monthly_cost) * m.tco_months },
   {
     label: 'Total Equity at End of Term',
-    note: `£${(SAVINGS_POT / 1000).toFixed(0)}k savings − upfront + extra saved + asset`,
+    note: 'Saved from budget + asset value at end of term',
     lowerIsBetter: false,
     getValue: m => fmtSigned(calcTotalEquity(m)),
     getNumber: m => calcTotalEquity(m),

@@ -158,7 +158,6 @@ export interface BreakdownItem {
 }
 
 export const MONTHLY_BUDGET = 800;
-export const SAVINGS_POT = 4_000;
 
 export function calcEquityBuiltPerYear(m: CarMetrics, monthlyBudget: number = MONTHLY_BUDGET): number {
   const years = m.tco_months / 12;
@@ -192,8 +191,7 @@ export function calcEquityBreakdownPerYear(m: CarMetrics, monthlyBudget: number 
 
   return {
     assetPerYear: years > 0 ? (assetAtEnd - balloon) / years : 0,
-    // Only the budget-based savings: (max monthly budget − total monthly cost),
-    // annualised. The leftover savings pot is part of total equity, not budget savings.
+    // Budget-based savings only: (max monthly budget − total monthly cost), annualised.
     savedFromBudgetPerYear: years > 0 ? extraSaved / years : 0,
   };
 }
@@ -208,13 +206,6 @@ export function calcTotalEquity(m: CarMetrics, monthlyBudget: number = MONTHLY_B
   // numbers are equal (e.g. £479 budget vs a £478.66 cost shown as £479).
   const extraSaved = (Math.round(monthlyBudget) - Math.round(m.total_monthly_cost)) * m.tco_months;
 
-  const upfront =
-    ft === 'cash' ? price
-    : ft === 'lease' ? (m.finance.initial_rental_months ?? 3) * (m.finance.monthly_payment ?? 0)
-    : (m.finance.deposit ?? 0);
-
-  const savingsLeft = Math.max(0, SAVINGS_POT - upfront);
-
   const assetAtEnd =
     price > 0 && ft !== 'lease' && !(ft === 'pcp' && m.finance.pcp_end_action !== 'buy')
       ? price * Math.pow(1 - dep / 100, years)
@@ -225,7 +216,10 @@ export function calcTotalEquity(m: CarMetrics, monthlyBudget: number = MONTHLY_B
       ? (m.finance.balloon_payment ?? 0)
       : 0;
 
-  return savingsLeft + extraSaved + assetAtEnd - balloon;
+  // Total equity = the depreciating asset you keep + what you saved against your
+  // budget. This mirrors the per-year breakdown shown on each card (asset value +
+  // saved from budget), so the headline figure always reconciles with its parts.
+  return extraSaved + assetAtEnd - balloon;
 }
 
 export function calcMoneyBreakdown(finance: FinanceOption, annualRunning: number): BreakdownItem[] {
