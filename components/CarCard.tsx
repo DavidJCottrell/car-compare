@@ -115,9 +115,9 @@ export function CarCard({ data, selected, onToggleSelect, onDelete, monthlyBudge
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-gray-600 text-xs">Extra savings</span>
-              <span className={`text-xs ${equityBreakdown.savingsPerYear >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
-                {fmtSigned(equityBreakdown.savingsPerYear)}/yr
+              <span className="text-gray-600 text-xs">Saved from budget</span>
+              <span className={`text-xs ${equityBreakdown.savedFromBudgetPerYear >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
+                {fmtSigned(equityBreakdown.savedFromBudgetPerYear)}/yr
               </span>
             </div>
           </div>

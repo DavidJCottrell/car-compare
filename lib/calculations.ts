@@ -167,7 +167,7 @@ export function calcEquityBuiltPerYear(m: CarMetrics, monthlyBudget: number = MO
 
 export interface EquityBreakdownPerYear {
   assetPerYear: number;
-  savingsPerYear: number;
+  savedFromBudgetPerYear: number;
 }
 
 export function calcEquityBreakdownPerYear(m: CarMetrics, monthlyBudget: number = MONTHLY_BUDGET): EquityBreakdownPerYear {
@@ -176,13 +176,6 @@ export function calcEquityBreakdownPerYear(m: CarMetrics, monthlyBudget: number 
   const dep = m.finance.depreciation_rate ?? 15;
   const years = m.tco_months / 12;
   const extraSaved = (monthlyBudget - m.total_monthly_cost) * m.tco_months;
-
-  const upfront =
-    ft === 'cash' ? price
-    : ft === 'lease' ? (m.finance.initial_rental_months ?? 3) * (m.finance.monthly_payment ?? 0)
-    : (m.finance.deposit ?? 0);
-
-  const savingsLeft = Math.max(0, SAVINGS_POT - upfront);
 
   const assetAtEnd =
     price > 0 && ft !== 'lease' && !(ft === 'pcp' && m.finance.pcp_end_action !== 'buy')
@@ -196,7 +189,9 @@ export function calcEquityBreakdownPerYear(m: CarMetrics, monthlyBudget: number 
 
   return {
     assetPerYear: years > 0 ? (assetAtEnd - balloon) / years : 0,
-    savingsPerYear: years > 0 ? (savingsLeft + extraSaved) / years : 0,
+    // Only the budget-based savings: (max monthly budget − total monthly cost),
+    // annualised. The leftover savings pot is part of total equity, not budget savings.
+    savedFromBudgetPerYear: years > 0 ? extraSaved / years : 0,
   };
 }
 
