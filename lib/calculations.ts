@@ -160,9 +160,9 @@ export interface BreakdownItem {
 export const MONTHLY_BUDGET = 800;
 export const SAVINGS_POT = 4_000;
 
-export function calcEquityBuiltPerYear(m: CarMetrics): number {
+export function calcEquityBuiltPerYear(m: CarMetrics, monthlyBudget: number = MONTHLY_BUDGET): number {
   const years = m.tco_months / 12;
-  return years > 0 ? calcTotalEquity(m) / years : 0;
+  return years > 0 ? calcTotalEquity(m, monthlyBudget) / years : 0;
 }
 
 export interface EquityBreakdownPerYear {
@@ -170,12 +170,12 @@ export interface EquityBreakdownPerYear {
   savingsPerYear: number;
 }
 
-export function calcEquityBreakdownPerYear(m: CarMetrics): EquityBreakdownPerYear {
+export function calcEquityBreakdownPerYear(m: CarMetrics, monthlyBudget: number = MONTHLY_BUDGET): EquityBreakdownPerYear {
   const ft = m.finance.finance_type;
   const price = m.finance.purchase_price ?? 0;
   const dep = m.finance.depreciation_rate ?? 15;
   const years = m.tco_months / 12;
-  const extraSaved = (MONTHLY_BUDGET - m.total_monthly_cost) * m.tco_months;
+  const extraSaved = (monthlyBudget - m.total_monthly_cost) * m.tco_months;
 
   const upfront =
     ft === 'cash' ? price
@@ -200,12 +200,12 @@ export function calcEquityBreakdownPerYear(m: CarMetrics): EquityBreakdownPerYea
   };
 }
 
-export function calcTotalEquity(m: CarMetrics): number {
+export function calcTotalEquity(m: CarMetrics, monthlyBudget: number = MONTHLY_BUDGET): number {
   const ft = m.finance.finance_type;
   const price = m.finance.purchase_price ?? 0;
   const dep = m.finance.depreciation_rate ?? 15;
   const years = m.tco_months / 12;
-  const extraSaved = (MONTHLY_BUDGET - m.total_monthly_cost) * m.tco_months;
+  const extraSaved = (monthlyBudget - m.total_monthly_cost) * m.tco_months;
 
   const upfront =
     ft === 'cash' ? price

@@ -25,15 +25,16 @@ interface CarCardProps {
   selected: boolean;
   onToggleSelect: (id: string) => void;
   onDelete: (id: string) => void;
+  monthlyBudget?: number;
 }
 
-export function CarCard({ data, selected, onToggleSelect, onDelete }: CarCardProps) {
+export function CarCard({ data, selected, onToggleSelect, onDelete, monthlyBudget }: CarCardProps) {
   const metrics = calcMetrics(data);
   const ft = data.finance?.finance_type;
   const badge = ft ? FINANCE_LABELS[ft] : null;
-  const totalEquity = calcTotalEquity(metrics);
-  const equityPerYear = calcEquityBuiltPerYear(metrics);
-  const equityBreakdown = calcEquityBreakdownPerYear(metrics);
+  const totalEquity = calcTotalEquity(metrics, monthlyBudget);
+  const equityPerYear = calcEquityBuiltPerYear(metrics, monthlyBudget);
+  const equityBreakdown = calcEquityBreakdownPerYear(metrics, monthlyBudget);
   const termYears = data.finance ? Math.round(getTermMonths(data.finance) / 12) : null;
 
   return (
