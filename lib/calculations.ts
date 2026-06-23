@@ -157,7 +157,7 @@ export interface BreakdownItem {
   note?: string;
 }
 
-export const MONTHLY_BUDGET = 800;
+export const MONTHLY_BUDGET = 700;
 
 export function calcEquityBuiltPerYear(m: CarMetrics, monthlyBudget: number = MONTHLY_BUDGET): number {
   const years = m.tco_months / 12;
